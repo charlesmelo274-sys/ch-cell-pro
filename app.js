@@ -1078,9 +1078,19 @@ const app = {
     if (window.lucide) window.lucide.createIcons();
   },
 
-  editOS(id) {
-    const os = state.orders.find(o => o.id === id);
-    if (!os) return;
+  editOS(idOrNumero) {
+    if (!idOrNumero) return;
+    const clean = String(idOrNumero).trim().replace(/^#/, '');
+    const os = (state.orders || []).find(o => 
+      String(o.id || '').trim().toLowerCase() === clean.toLowerCase() ||
+      String(o.numero || '').trim().toLowerCase() === clean.toLowerCase() ||
+      String(o.id || '').trim().toLowerCase() === String(idOrNumero).trim().toLowerCase() ||
+      String(o.numero || '').trim().toLowerCase() === String(idOrNumero).trim().toLowerCase()
+    );
+    if (!os) {
+      alert(`Ordem de Serviço #${idOrNumero} não encontrada.`);
+      return;
+    }
 
     document.getElementById('formOS').reset();
     document.getElementById('osEditId').value = os.id;
@@ -1116,8 +1126,61 @@ const app = {
     this.renderChecklistForm();
     this.renderPhotosGallery();
 
-    document.getElementById('modalOS').classList.remove('hidden');
+    const modal = document.getElementById('modalOS');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.scrollTop = 0;
+    }
     if (window.lucide) window.lucide.createIcons();
+  },
+
+  openOSFromClient(idOrNumero) {
+    if (!idOrNumero) return;
+    const clean = String(idOrNumero).trim().replace(/^#/, '');
+    const os = (state.orders || []).find(o => 
+      String(o.id || '').trim().toLowerCase() === clean.toLowerCase() ||
+      String(o.numero || '').trim().toLowerCase() === clean.toLowerCase() ||
+      String(o.id || '').trim().toLowerCase() === String(idOrNumero).trim().toLowerCase() ||
+      String(o.numero || '').trim().toLowerCase() === String(idOrNumero).trim().toLowerCase()
+    );
+
+    if (!os) {
+      alert(`Ordem de Serviço #${idOrNumero} não encontrada.`);
+      return;
+    }
+
+    // Direciona imediatamente para a tela de Ordens de Serviço (viewOSList)
+    this.navigate('os-list');
+
+    // Limpa filtros anteriores e preenche o campo de busca com a OS selecionada
+    const filterStatus = document.getElementById('osFilterStatus');
+    if (filterStatus) filterStatus.value = '';
+    const filterMarca = document.getElementById('osFilterMarca');
+    if (filterMarca) filterMarca.value = '';
+    const searchInput = document.getElementById('osSearchInput');
+    if (searchInput) searchInput.value = os.numero || '';
+
+    // Renderiza a lista de OS com esse filtro aplicado no fundo
+    this.renderOSList();
+
+    // Abre na hora o modal completo de edição e detalhes da OS
+    this.editOS(os.id);
+  },
+
+  openEditOSModal(idOrNumero) {
+    this.openOSFromClient(idOrNumero);
+  },
+
+  filterOrdersByClient(clientName) {
+    if (!clientName) return;
+    this.navigate('os-list');
+    const filterStatus = document.getElementById('osFilterStatus');
+    if (filterStatus) filterStatus.value = '';
+    const filterMarca = document.getElementById('osFilterMarca');
+    if (filterMarca) filterMarca.value = '';
+    const searchInput = document.getElementById('osSearchInput');
+    if (searchInput) searchInput.value = clientName;
+    this.renderOSList();
   },
 
   closeOSModal() {
@@ -2332,9 +2395,10 @@ Qualquer dúvida estamos à disposição!`;
                 </div>
               </div>
 
-              <span class="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
-                ${clientOrders.length} OS
-              </span>
+              <button type="button" onclick="app.filterOrdersByClient('${esc(c.nome)}')" title="Filtrar e ver todas as Ordens de Serviço deste cliente" class="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 shrink-0 cursor-pointer transition active:scale-95 flex items-center gap-1">
+                <span>${clientOrders.length} OS</span>
+                <i data-lucide="arrow-up-right" class="w-3 h-3 text-indigo-500"></i>
+              </button>
             </div>
 
             <!-- Dados Extras de Contato / Endereço -->
@@ -2361,15 +2425,24 @@ Qualquer dúvida estamos à disposição!`;
             <!-- Histórico de Ordens Recentes -->
             ${clientOrders.length > 0 ? `
               <div class="space-y-1.5 pt-1">
-                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Últimas Ordens de Serviço:</p>
+                <div class="flex items-center justify-between">
+                  <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Últimas Ordens de Serviço:</p>
+                  ${clientOrders.length > 3 ? `
+                    <button type="button" onclick="app.filterOrdersByClient('${esc(c.nome)}')" class="text-[10px] font-bold text-brand-600 hover:text-brand-800 hover:underline cursor-pointer">
+                      Ver todas (${clientOrders.length})
+                    </button>
+                  ` : ''}
+                </div>
                 <div class="flex flex-wrap gap-1.5">
                   ${clientOrders.slice(0, 3).map(o => {
+                    const osIdTarget = o.id || o.numero;
                     return `
-                      <span onclick="app.openEditOSModal('${o.id}')" title="Clique para abrir a OS #${o.numero}" class="cursor-pointer text-[11px] font-bold px-2 py-0.5 rounded-lg border border-slate-200/80 hover:border-brand-500 transition flex items-center gap-1 bg-white">
-                        <strong class="font-mono text-brand-600">#${o.numero}</strong>
-                        <span class="text-slate-600 truncate max-w-[100px]">${o.marca} ${o.modelo}</span>
-                        <span class="w-1.5 h-1.5 rounded-full ${o.status === 'Finalizado' ? 'bg-emerald-500' : 'bg-brand-500'}"></span>
-                      </span>
+                      <button type="button" onclick="app.openOSFromClient('${osIdTarget}')" title="Clique para abrir diretamente a OS #${o.numero}" class="cursor-pointer text-[11px] font-bold px-2.5 py-1 rounded-xl border border-slate-200/90 hover:border-brand-500 hover:bg-brand-50 hover:text-brand-700 active:scale-95 transition-all flex items-center gap-1.5 bg-white shadow-2xs group">
+                        <strong class="font-mono text-brand-600 group-hover:text-brand-700">#${esc(o.numero)}</strong>
+                        <span class="text-slate-700 truncate max-w-[110px]">${esc(o.marca || '')} ${esc(o.modelo || '')}</span>
+                        <span class="w-2 h-2 rounded-full ${o.status === 'Finalizado' ? 'bg-emerald-500' : 'bg-brand-500'}" title="${esc(o.status || '')}"></span>
+                        <i data-lucide="arrow-up-right" class="w-3 h-3 text-slate-400 group-hover:text-brand-600 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"></i>
+                      </button>
                     `;
                   }).join('')}
                 </div>
