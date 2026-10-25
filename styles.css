@@ -1,0 +1,174 @@
+/* Estilos customizados e regras de impressão para CH Cell Pro */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --bg-branco-gelo: #f0f4f8; /* Branco gelo com suave tom frio premium */
+}
+
+/* Fundo principal em branco gelo para toda a aplicação e todas as abas */
+html,
+body,
+main,
+#viewDashboard,
+#viewOSList,
+#viewPDV,
+#viewEstoque,
+#viewFornecedores,
+#viewClientes,
+#viewEbooks,
+#viewVideoaulas,
+#viewFinanceiro,
+#viewFuncionarios,
+#viewAcessos,
+#viewEquipe,
+#viewConfiguracoes {
+  background-color: #f0f4f8 !important;
+}
+
+/* Regras de ocultação garantidas para telas de autenticação e modais */
+#authScreen.hidden,
+#primeiroAcessoScreen.hidden,
+#acessoBloqueadoScreen.hidden,
+#recuperarAcessoScreen.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+body {
+  font-family: var(--font-main);
+  -webkit-tap-highlight-color: transparent;
+  color: #1e293b;
+}
+
+/* Scrollbar suave */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #e8eef5;
+}
+::-webkit-scrollbar-thumb {
+  background: #c5d2e0;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9bb0c7;
+}
+
+/* Animação de pulso para status AO VIVO */
+@keyframes pulse-live {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+.pulse-badge {
+  animation: pulse-live 2s infinite ease-in-out;
+}
+
+/* Estilo do botão de checklist (3 estados) */
+.ck-btn {
+  transition: all 0.15s ease-in-out;
+}
+.ck-btn.active-ok {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  border-color: #059669 !important;
+}
+.ck-btn.active-warn {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  border-color: #dc2626 !important;
+}
+.ck-btn.active-na {
+  background-color: #64748b !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  border-color: #64748b !important;
+}
+
+/* Efeito glassmorphism e cards modernos */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+}
+
+/* Timeline Vertical */
+.timeline-track::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: 19px;
+  width: 2px;
+  background: #e2e8f0;
+  z-index: 1;
+}
+
+/* Safe areas para celulares (iPhone notch e bottom bar) */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 20px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 20px);
+}
+
+/* =========================================================================
+   REGRAS DE IMPRESSÃO (A4, TÉRMICA 80MM, TÉRMICA 58MM E ETIQUETA COM QR CODE)
+   ========================================================================= */
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .no-print, nav, aside, header, footer, #bottomNav, .btn-action {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+
+  /* Formato Térmico 80mm e 58mm */
+  body.print-thermal-80 {
+    width: 76mm !important;
+    margin: 0 auto !important;
+    padding: 2mm !important;
+    font-size: 8pt !important;
+    line-height: 1.2 !important;
+  }
+  body.print-thermal-58 {
+    width: 54mm !important;
+    margin: 0 auto !important;
+    padding: 1mm !important;
+    font-size: 7.5pt !important;
+    line-height: 1.15 !important;
+  }
+  body.print-thermal-80 .thermal-box,
+  body.print-thermal-58 .thermal-box {
+    width: 100% !important;
+    page-break-after: always;
+  }
+
+  /* Formato A4 */
+  body.print-a4 {
+    width: 100% !important;
+    padding: 10mm !important;
+  }
+  body.print-a4 .page-break {
+    page-break-after: always;
+  }
+}

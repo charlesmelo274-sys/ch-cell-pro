@@ -1,0 +1,2644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>CH Cell Pro — Sistema de Assistência Técnica</title>
+  
+  <!-- Manifest & Web App Mobile Friendly -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CH Cell Pro">
+
+  <!-- Script de auto-limpeza de Service Workers e Caches antigos de versões anteriores -->
+  <script>
+    (function() {
+      // Se houver Service Worker antigo com Cache-First travado, força atualização imediata
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          for (var i = 0; i < regs.length; i++) {
+            regs[i].update();
+          }
+        });
+      }
+    })();
+  </script>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            },
+            status: {
+              analise: '#3b82f6',
+              pecas: '#f59e0b',
+              servico: '#8b5cf6',
+              finalizado: '#10b981',
+              entregue: '#059669',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- QRCode.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="./styles.css?v=20261024_03">
+</head>
+<body class="bg-[#f0f4f8] text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- =====================================================================
+       TELA DE LOGIN (SUPABASE AUTH: ADMINISTRADOR & FUNCIONÁRIOS)
+       ===================================================================== -->
+  <div id="authScreen" class="fixed inset-0 bg-[#f0f4f8] z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-xl border border-slate-200 space-y-6">
+      
+      <!-- Brand & Header -->
+      <div class="text-center space-y-2">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white flex items-center justify-center mx-auto shadow-lg shadow-brand-500/25">
+          <i data-lucide="wrench" class="w-7 h-7"></i>
+        </div>
+        <h2 class="text-2xl font-black text-slate-900 tracking-tight">
+          CH Cell <span class="text-brand-600">PRO</span>
+        </h2>
+        <p class="text-xs text-slate-500 font-medium">Acesso de Administrador e Funcionários</p>
+      </div>
+
+      <!-- Login Form -->
+      <form id="loginForm" onsubmit="authManager.handleLogin(event)" class="space-y-4 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1.5">E-mail de Acesso</label>
+          <div class="relative">
+            <i data-lucide="mail" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="loginEmail" type="text" required value="charlesmelo274@gmail.com" placeholder="seuemail@exemplo.com ou usuário" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium transition">
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="font-bold text-slate-700">Senha</label>
+            <button type="button" onclick="authManager.showForgotPassword()" class="text-[11px] font-semibold text-brand-600 hover:underline">
+              Esqueci minha senha
+            </button>
+          </div>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="loginPassword" type="password" required value="88511611Ch" placeholder="••••••••••••" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium transition">
+          </div>
+        </div>
+
+        <p id="loginErrorMsg" class="text-rose-600 font-semibold text-xs min-h-[16px] text-center" role="status"></p>
+
+        <button id="btnLoginSubmit" type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-extrabold text-sm rounded-xl transition shadow-lg shadow-brand-500/25 flex items-center justify-center gap-2 cursor-pointer">
+          <span>Entrar no Sistema</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+
+        <button type="button" onclick="window.authManager.loginAsMasterAdmin()" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200/80">
+          <i data-lucide="shield-check" class="w-4 h-4 text-brand-600"></i>
+          <span>Entrar Direto como Administrador (Charles)</span>
+        </button>
+
+        <div class="pt-1 text-center">
+          <button type="button" onclick="window.authManager.clearCacheAndReset()" class="text-[11px] text-slate-400 hover:text-brand-600 transition inline-flex items-center gap-1.5 cursor-pointer py-1 px-2 rounded-lg hover:bg-slate-100">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+            <span>Navegador travado? Clique para limpar cache e destravar</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- Demo / Offline Fallback Access -->
+      <div class="pt-4 border-t border-slate-100 text-center space-y-2">
+        <div class="flex items-center justify-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="text-[11px] text-slate-500 font-medium">Supabase Auth Protegido</span>
+        </div>
+        <p class="text-[10px] text-slate-400">
+          O login do Administrador libera acesso total. O login do Funcionário abre a área de equipe conforme as permissões.
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       TELA DE PRIMEIRO ACESSO (TROCA OBRIGATÓRIA DE SENHA)
+       ===================================================================== -->
+  <div id="primeiroAcessoScreen" class="fixed inset-0 bg-[#f0f4f8] z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-xl border border-slate-200 space-y-5">
+      <div class="text-center space-y-1">
+        <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-2">
+          <i data-lucide="key" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-xl font-black text-slate-900">Primeiro Acesso — Troca Obrigatória</h3>
+        <p class="text-xs text-slate-500">Para sua segurança, defina sua senha definitiva de acesso à loja.</p>
+      </div>
+
+      <form id="primeiroAcessoForm" onsubmit="authManager.handleFirstPasswordChange(event)" class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Senha Inicial Temporária</label>
+          <input id="primeiroSenhaAtual" type="password" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Nova Senha Pessoal (mínimo 6 caracteres)</label>
+          <input id="primeiroSenhaNova" type="password" minlength="6" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Confirme a Nova Senha</label>
+          <input id="primeiroSenhaConfirma" type="password" minlength="6" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+        </div>
+        
+        <p id="primeiroMsg" class="text-rose-600 font-semibold text-xs text-center" role="status"></p>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="authManager.logout()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-200 transition">
+            Cancelar e Sair
+          </button>
+          <button id="primeiroSalvarBtn" type="submit" class="flex-1 py-2.5 bg-brand-600 text-white font-black rounded-xl text-xs hover:bg-brand-700 transition shadow-md shadow-brand-500/25">
+            Salvar Senha
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       TELA DE ACESSO BLOQUEADO / AGUARDANDO ATIVAÇÃO
+       ===================================================================== -->
+  <div id="acessoBloqueadoScreen" class="fixed inset-0 bg-[#f0f4f8] z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-xl border border-slate-200 text-center space-y-4">
+      <div class="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+        <i data-lucide="shield-alert" class="w-7 h-7"></i>
+      </div>
+      <h3 class="text-xl font-black text-slate-900">Acesso Indisponível</h3>
+      <p id="bloqueioMotivo" class="text-xs text-slate-600 font-medium leading-relaxed">
+        Sua conta de funcionário ainda não foi ativada pelo proprietário da loja.
+      </p>
+      <button onclick="authManager.logout()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition">
+        Voltar para a Tela de Login
+      </button>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       TELA DE REDEFINIÇÃO DE SENHA (RECUPERAÇÃO)
+       ===================================================================== -->
+  <div id="recuperarAcessoScreen" class="fixed inset-0 bg-[#f0f4f8] z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-xl border border-slate-200 space-y-4">
+      <div class="text-center space-y-1">
+        <div class="w-12 h-12 rounded-2xl bg-blue-100 text-brand-600 flex items-center justify-center mx-auto mb-2">
+          <i data-lucide="unlock" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-xl font-black text-slate-900">Definir Nova Senha</h3>
+        <p class="text-xs text-slate-500">Link de recuperação confirmado com sucesso.</p>
+      </div>
+
+      <form id="recuperarForm" onsubmit="authManager.handlePasswordReset(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Nova Senha (mínimo 12 caracteres)</label>
+          <input id="recuperarNova" type="password" minlength="12" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Confirmar Nova Senha</label>
+          <input id="recuperarConfirma" type="password" minlength="12" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+        </div>
+        <p id="recuperarMsg" class="text-rose-600 font-semibold text-xs text-center" role="status"></p>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="authManager.logout()" class="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-200 transition">
+            Cancelar
+          </button>
+          <button id="recuperarSalvarBtn" type="submit" class="flex-1 py-2.5 bg-brand-600 text-white font-black rounded-xl text-xs hover:bg-brand-700 transition">
+            Salvar Nova Senha
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOP HEADER (Desktop & Mobile) -->
+  <header class="no-print bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 transition-all">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      
+      <!-- Brand & Mode Switcher -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Botão Voltar Dinâmico (Global para Desktop e Celular) -->
+        <button id="btnHeaderGoBack" onclick="app.goBack()" title="Voltar para a tela anterior" class="hidden items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs rounded-xl transition border border-slate-200 cursor-pointer shadow-sm">
+          <i data-lucide="arrow-left" class="w-4 h-4 text-brand-600"></i>
+          <span class="hidden sm:inline">Voltar</span>
+        </button>
+
+        <button id="btnToggleSidebar" class="hidden md:flex p-2 text-slate-600 hover:text-brand-600 hover:bg-slate-100 rounded-xl transition">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+
+        <div class="flex items-center gap-2 cursor-pointer" onclick="app.navigate('dashboard')">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-brand-500/20">
+            <i data-lucide="wrench" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h1 class="font-extrabold text-base sm:text-lg tracking-tight flex items-center gap-1.5 leading-none">
+              <span id="headerStoreName">CH Cell</span>
+              <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-brand-100 text-brand-700">PRO</span>
+            </h1>
+            <p class="text-[11px] text-slate-500 font-medium">Assistência Técnica</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons & User Profile -->
+      <div class="flex items-center gap-2">
+        <!-- Live tracking toggle button -->
+        <button onclick="app.openQuickTrackingModal()" title="Consultar rastreio ao vivo" class="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 transition shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-badge"></span>
+          <span>Rastreio Cliente</span>
+          <i data-lucide="external-link" class="w-3.5 h-3.5 opacity-60"></i>
+        </button>
+
+        <!-- New OS Button -->
+        <button id="btnHeaderNewOS" onclick="app.openNewOSModal()" class="flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow-md shadow-brand-500/25">
+          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          <span>Nova OS</span>
+        </button>
+
+        <!-- User Profile Pill & Logout -->
+        <div class="flex items-center gap-2 pl-2 border-l border-slate-200">
+          <div class="hidden sm:block text-right leading-tight">
+            <p id="userEmailBadge" class="text-xs font-bold text-slate-800 truncate max-w-[130px]">admin@chcell.com</p>
+            <span id="userRoleBadge" class="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-blue-100 text-brand-700">ADMINISTRADOR</span>
+          </div>
+          <button onclick="authManager.logout()" title="Sair da Conta" class="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN WRAPPER -->
+  <div class="flex-1 flex max-w-7xl w-full mx-auto">
+    
+    <!-- DESKTOP SIDEBAR -->
+    <aside id="sidebar" class="no-print hidden md:flex flex-col w-64 border-r border-slate-200 bg-white p-4 shrink-0 transition-all">
+      <div class="space-y-1">
+        <button onclick="app.navigate('dashboard')" data-nav="dashboard" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="layout-grid" class="w-4 h-4"></i>
+          <span>Visão Geral</span>
+        </button>
+        <button onclick="app.navigate('os-list')" data-nav="os-list" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="clipboard-list" class="w-4 h-4"></i>
+          <span>Ordens de Serviço</span>
+          <span id="badgeCountOS" class="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-brand-100 text-brand-700">0</span>
+        </button>
+        <button onclick="app.navigate('pdv')" data-nav="pdv" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+          <span>Vendas & PDV</span>
+        </button>
+        <button onclick="app.navigate('estoque')" data-nav="estoque" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="package" class="w-4 h-4"></i>
+          <span>Estoque de Peças</span>
+        </button>
+        <button onclick="app.navigate('fornecedores')" data-nav="fornecedores" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="truck" class="w-4 h-4 text-amber-600"></i>
+          <span>Fornecedores</span>
+        </button>
+        <button onclick="app.navigate('clientes')" data-nav="clientes" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span>Histórico de Clientes</span>
+        </button>
+
+        <!-- TREINAMENTOS -->
+        <div class="pt-2 pb-1 px-3.5 text-[10px] font-black uppercase tracking-wider text-slate-400">
+          Treinamentos & Manuais
+        </div>
+        <button onclick="app.navigate('ebooks')" data-nav="ebooks" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="book-open" class="w-4 h-4 text-blue-600"></i>
+          <span>eBooks & Apostilas</span>
+        </button>
+        <button onclick="app.navigate('videoaulas')" data-nav="videoaulas" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="play-circle" class="w-4 h-4 text-rose-600"></i>
+          <span>Videoaulas Técnicas</span>
+        </button>
+
+        <!-- ADMINISTRAÇÃO & EQUIPE -->
+        <div class="pt-2 pb-1 px-3.5 text-[10px] font-black uppercase tracking-wider text-slate-400" data-admin-only="true">
+          Equipe & Administração
+        </div>
+        <button onclick="app.navigate('funcionarios')" data-nav="funcionarios" data-admin-only="true" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="users-round" class="w-4 h-4 text-purple-600"></i>
+          <span>Funcionários</span>
+          <span id="badgeCountFuncionarios" class="ml-auto text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">0</span>
+        </button>
+        <button onclick="app.navigate('acessos')" data-nav="acessos" data-admin-only="true" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="shield-check" class="w-4 h-4 text-purple-600"></i>
+          <span>Gestão de Acessos & Senhas</span>
+        </button>
+        <button onclick="app.navigate('financeiro')" data-nav="financeiro" data-admin-only="true" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">
+          <i data-lucide="wallet" class="w-4 h-4 text-emerald-600"></i>
+          <span>Financeiro da Loja</span>
+        </button>
+      </div>
+
+      <div class="mt-auto pt-4 border-t border-slate-200 space-y-1">
+        <button onclick="app.navigate('configuracoes')" data-nav="configuracoes" data-admin-only="true" class="nav-link w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+          <span>Configurações & Impressão</span>
+        </button>
+        <div class="px-3.5 py-2 text-[11px] text-slate-400">
+          <p class="font-medium">CH Cell Pro v5.0</p>
+          <p id="cloudSyncStatus" class="flex items-center gap-1.5 mt-1 text-emerald-600">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado ao Supabase
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT VIEWS -->
+    <main class="flex-1 p-3 sm:p-6 lg:p-8 min-w-0 pb-28 md:pb-8">
+
+      <!-- ===================================================================
+           VIEW 1: DASHBOARD / VISÃO GERAL (Fotos 1 e 2)
+           =================================================================== -->
+      <section id="viewDashboard" class="space-y-6">
+        
+        <!-- Welcome Hero Banner -->
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-brand-900 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl">
+          <div class="relative z-10 max-w-2xl space-y-3">
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-brand-200 text-xs font-semibold">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Assistência Técnica Eficiente e Moderna
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              Seu balcão rápido, organizado e conectado no WhatsApp.
+            </h2>
+            <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+              Abra a OS na frente do cliente com fotos e checklist, envie o link de acompanhamento com 1 toque e dê baixa no estoque automaticamente.
+            </p>
+            <div class="pt-2 flex flex-wrap gap-3">
+              <button onclick="app.openNewOSModal()" class="px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl text-sm transition shadow-lg shadow-brand-500/30 flex items-center gap-2">
+                <i data-lucide="plus" class="w-4 h-4"></i> Abrir Nova OS Agora
+              </button>
+              <button onclick="app.navigate('pdv')" class="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl text-sm transition backdrop-blur-md flex items-center gap-2">
+                <i data-lucide="shopping-cart" class="w-4 h-4"></i> Vender no Balcão (PDV)
+              </button>
+            </div>
+          </div>
+          <!-- Background glow -->
+          <div class="absolute -right-12 -bottom-12 w-64 h-64 bg-brand-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        </div>
+
+        <!-- Metric Badges Grid -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <i data-lucide="clock" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-slate-500">Em Análise</p>
+              <h3 id="statEmAnalise" class="text-xl sm:text-2xl font-black text-slate-900">0</h3>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <i data-lucide="wrench" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-slate-500">Em Manutenção</p>
+              <h3 id="statEmServico" class="text-xl sm:text-2xl font-black text-slate-900">0</h3>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <i data-lucide="check-circle" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-slate-500">Prontos p/ Entrega</p>
+              <h3 id="statFinalizados" class="text-xl sm:text-2xl font-black text-slate-900">0</h3>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <i data-lucide="dollar-sign" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-slate-500">Faturamento Hoje</p>
+              <h3 id="statFatHoje" class="text-xl sm:text-2xl font-black text-slate-900">R$ 0,00</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- The 6 Feature Cards (Matching User's Photo 1) -->
+        <div class="space-y-3 pt-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base sm:text-lg font-bold text-slate-900">Como funciona o seu fluxo diário</h3>
+            <span class="text-xs font-semibold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-full">Processo Completo</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            
+            <!-- Card 1: Abrir OS no balcão -->
+            <div onclick="app.openNewOSModal()" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-brand-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-50 text-brand-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="file-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Abrir a OS no balcão</h4>
+                  <p class="text-xs text-slate-500 mt-1">Cliente, aparelho, defeito e checklist com fotos em 3 estados (OK, Atenção, Não testado).</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-brand-600">
+                <span>Iniciar abertura</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+            <!-- Card 2: Mandar OS no WhatsApp -->
+            <div onclick="app.navigate('os-list')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-emerald-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="message-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Mandar OS no WhatsApp</h4>
+                  <p class="text-xs text-slate-500 mt-1">O cliente recebe tudo com 1 clique sem você digitar nada de novo, pronto no WhatsApp Web ou App.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-600">
+                <span>Ver OS prontas p/ envio</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+            <!-- Card 3: Histórico de cada cliente -->
+            <div onclick="app.navigate('clientes')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-indigo-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="user-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Histórico de cada cliente</h4>
+                  <p class="text-xs text-slate-500 mt-1">Todos os aparelhos, consertos e garantias de quem já passou pela sua assistência.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-indigo-600">
+                <span>Buscar histórico</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+            <!-- Card 4: Imprimir OS, recibo e etiqueta -->
+            <div onclick="app.navigate('os-list')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-slate-400 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="printer" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Imprimir OS, recibo e etiqueta</h4>
+                  <p class="text-xs text-slate-500 mt-1">Em impressora comum (A4) ou térmica de 80 e 58 mm, com QR Code para colar no aparelho.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-700">
+                <span>Modelos de impressão</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+            <!-- Card 5: Link ao vivo do reparo -->
+            <div onclick="app.openQuickTrackingModal()" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-purple-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="link-2" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Link do reparo ao vivo</h4>
+                  <p class="text-xs text-slate-500 mt-1">O cliente acompanha cada etapa pelo link sem te ligar o tempo todo perguntando se ficou pronto.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-purple-600">
+                <span>Ver página do cliente</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+            <!-- Card 6: Entradas, saídas e lucro -->
+            <div onclick="app.navigate('financeiro')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-amber-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="trending-up" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Entradas, saídas e lucro</h4>
+                  <p class="text-xs text-slate-500 mt-1">O financeiro da loja numa tela só: faturamento de serviços, vendas de balcão e margem líquida.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-amber-600">
+                <span>Abrir financeiro</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Apoio de Bancada: Fornecedores, eBooks & Treinamentos -->
+        <div class="space-y-3 pt-1">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base sm:text-lg font-bold text-slate-900">Apoio Técnico, Fornecedores & Treinamentos</h3>
+            <span class="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">Recursos da Bancada</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            
+            <!-- Fornecedores -->
+            <div onclick="app.navigate('fornecedores')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-amber-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="truck" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Fornecedores de Peças</h4>
+                  <p class="text-xs text-slate-500 mt-1">Distribuidores parceiros de telas, baterias e ferramentas com WhatsApp direto.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-amber-600">
+                <span>Ver fornecedores</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+            <!-- eBooks & Esquemas -->
+            <div onclick="app.navigate('ebooks')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-blue-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="book-open" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">eBooks & Esquemas</h4>
+                  <p class="text-xs text-slate-500 mt-1">Manuais de serviço, boardviews e mapas elétricos em PDF para consulta rápida.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-blue-600">
+                <span>Abrir biblioteca</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+            <!-- Videoaulas -->
+            <div onclick="app.navigate('videoaulas')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-rose-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="play-circle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Videoaulas Técnicas</h4>
+                  <p class="text-xs text-slate-500 mt-1">Tutoriais em vídeo de troca de vidro OCA, reballing, diagnóstico e macetes.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-rose-600">
+                <span>Assistir aulas</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Equipe & Controle de Acessos (Aba Solicitada) -->
+        <div class="space-y-3 pt-1" data-admin-only="true">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base sm:text-lg font-bold text-slate-900">Equipe, Funcionários & Gestão de Acessos</h3>
+            <span class="text-xs font-semibold text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full">Fase 3C Protegida</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            <!-- Card Funcionários -->
+            <div onclick="app.navigate('funcionarios')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-purple-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="users-round" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Quadro de Funcionários</h4>
+                  <p class="text-xs text-slate-500 mt-1">Cadastre atendentes e técnicos, edite dados cadastrais, acompanhe OS vinculadas e a produtividade da equipe.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-purple-600">
+                <span>Abrir funcionários</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+            <!-- Card Gestão de Acessos -->
+            <div onclick="app.navigate('acessos')" class="bg-white p-5 rounded-2xl border border-slate-200 hover:border-brand-500/50 hover:shadow-md transition cursor-pointer group flex flex-col justify-between">
+              <div class="space-y-3">
+                <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center group-hover:scale-105 transition">
+                  <i data-lucide="shield-check" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-900 text-base">Gestão de Acessos & Senhas</h4>
+                  <p class="text-xs text-slate-500 mt-1">Crie logins provisórios, configure modelos de permissões (Atendente/Técnico/Gerente) e libere ou bloqueie acessos.</p>
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-brand-600">
+                <span>Configurar permissões</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition"></i>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- The 4 Workflow Steps (Matching User's Photo 2) -->
+        <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 class="font-bold text-slate-900 text-sm sm:text-base">Automação de Ponta a Ponta</h3>
+            <span class="text-xs font-semibold text-slate-500">A Sua Parte ➔ O Sistema Resolve</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <div class="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+              <div class="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-700 shrink-0">
+                <i data-lucide="camera" class="w-5 h-5"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">A sua parte</p>
+                <p class="text-sm font-bold text-slate-900 truncate">Fotografa na entrada na frente do cliente</p>
+              </div>
+              <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 shrink-0"></i>
+              <div class="bg-blue-50 text-blue-700 px-3 py-2 rounded-xl text-xs font-semibold max-w-[140px] text-right">
+                Fotos na OS com checklist como prova
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+              <div class="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-700 shrink-0">
+                <i data-lucide="send" class="w-5 h-5"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">A sua parte</p>
+                <p class="text-sm font-bold text-slate-900 truncate">Toca em enviar com 1 toque</p>
+              </div>
+              <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 shrink-0"></i>
+              <div class="bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl text-xs font-semibold max-w-[140px] text-right">
+                Chega no WhatsApp do cliente formatado
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+              <div class="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-700 shrink-0">
+                <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">A sua parte</p>
+                <p class="text-sm font-bold text-slate-900 truncate">Muda o status do conserto na bancada</p>
+              </div>
+              <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 shrink-0"></i>
+              <div class="bg-purple-50 text-purple-700 px-3 py-2 rounded-xl text-xs font-semibold max-w-[140px] text-right">
+                Cliente vê a etapa pelo link em tempo real
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
+              <div class="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-slate-700 shrink-0">
+                <i data-lucide="box" class="w-5 h-5"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">A sua parte</p>
+                <p class="text-sm font-bold text-slate-900 truncate">Vende ou usa uma peça no serviço</p>
+              </div>
+              <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 shrink-0"></i>
+              <div class="bg-amber-50 text-amber-700 px-3 py-2 rounded-xl text-xs font-semibold max-w-[140px] text-right">
+                Estoque e custo dão baixa sozinhos
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===================================================================
+           VIEW 2: ORDENS DE SERVIÇO (LISTA & GESTÃO COMPLETA)
+           =================================================================== -->
+      <section id="viewOSList" class="hidden space-y-5">
+        
+        <!-- OS Header & Filter Controls -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Ordens de Serviço</h2>
+              <p class="text-xs text-slate-500">Gerencie todos os atendimentos, orçamentos e consertos</p>
+            </div>
+          </div>
+          <button onclick="app.openNewOSModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm rounded-xl transition shadow-md shadow-brand-500/25 flex items-center gap-2 self-start sm:self-auto">
+            <i data-lucide="plus" class="w-4 h-4"></i> Nova Ordem de Serviço
+          </button>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="osSearchInput" oninput="app.renderOSList()" type="search" placeholder="Buscar por cliente, OS #, telefone, defeito ou modelo..." class="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 transition">
+          </div>
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+            <select id="osFilterStatus" onchange="app.renderOSList()" class="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none text-slate-700">
+              <option value="">Todos os status</option>
+              <option value="Em Análise">🔵 Em Análise</option>
+              <option value="Aguardando Peças">🟠 Aguardando Peças</option>
+              <option value="Em Serviço">🟣 Em Serviço</option>
+              <option value="Finalizado">🟢 Finalizado</option>
+              <option value="Pago e Entregue">💰 Pago e Entregue</option>
+              <option value="Cancelado">⚪ Cancelado</option>
+            </select>
+            <select id="osFilterMarca" onchange="app.renderOSList()" class="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:outline-none text-slate-700">
+              <option value="">Todas as marcas</option>
+              <option value="Apple">Apple / iPhone</option>
+              <option value="Samsung">Samsung</option>
+              <option value="Motorola">Motorola</option>
+              <option value="Xiaomi">Xiaomi</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- OS Grid Cards -->
+        <div id="osContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated dynamically via JS -->
+        </div>
+
+      </section>
+
+      <!-- ===================================================================
+           VIEW 3: VENDAS & PDV / ESTOQUE & BALCÃO
+           =================================================================== -->
+      <section id="viewPDV" class="hidden space-y-4">
+        
+        <!-- Header PDV -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <span>Vendas & PDV Balcão</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Loja & Balcão</span>
+              </h2>
+              <p class="text-xs text-slate-500">Venda rápida de balcão, baixa automática de estoque e reposição de peças</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="app.openNewProductModal()" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-brand-500/20">
+              <i data-lucide="plus" class="w-4 h-4"></i> Novo Produto
+            </button>
+          </div>
+        </div>
+
+        <!-- Subtabs Navigation -->
+        <div class="flex border-b border-slate-200 text-xs font-bold gap-2 overflow-x-auto pb-1 sm:pb-0">
+          <button onclick="app.setPDVSubtab('balcao')" id="subtabBtnBalcao" class="px-4 py-2.5 border-b-2 border-brand-600 text-brand-600 flex items-center gap-2 cursor-pointer transition shrink-0">
+            <i data-lucide="shopping-cart" class="w-4 h-4"></i> Venda de Balcão (PDV)
+          </button>
+          <button onclick="app.setPDVSubtab('estoque')" id="subtabBtnEstoque" class="px-4 py-2.5 text-slate-500 hover:text-slate-800 flex items-center gap-2 cursor-pointer transition shrink-0">
+            <i data-lucide="package" class="w-4 h-4 text-purple-600"></i> Estoque & Peças
+          </button>
+          <button onclick="app.setPDVSubtab('historico')" id="subtabBtnHistorico" class="px-4 py-2.5 text-slate-500 hover:text-slate-800 flex items-center gap-2 cursor-pointer transition shrink-0">
+            <i data-lucide="history" class="w-4 h-4 text-emerald-600"></i> Histórico de Vendas Balcão
+          </button>
+        </div>
+
+        <!-- PAINEL 1: VENDA DE BALCÃO (PDV COMPLETO) -->
+        <div id="pdvPanelBalcao" class="space-y-4">
+          
+          <!-- Lançamento Rápido no Balcão (Estilo Clássico CH Cell) -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i> Lançamento Rápido no Balcão
+              </h3>
+              <span class="text-[11px] text-slate-400">Selecione uma peça ou produto do estoque</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              <div class="sm:col-span-7">
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Produto / Peça em Estoque</label>
+                <select id="vbProdutoSelect" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-brand-500">
+                  <option value="">Carregando produtos...</option>
+                </select>
+              </div>
+
+              <div class="sm:col-span-2">
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Quantidade</label>
+                <input id="vbQtdInput" type="number" min="1" step="1" value="1" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-center focus:outline-none focus:border-brand-500">
+              </div>
+
+              <div class="sm:col-span-3">
+                <button type="button" onclick="app.addQuickBalcaoItem()" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer">
+                  <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-400"></i>
+                  <span>Adicionar ao Carrinho</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Layout Duas Colunas: Catálogo Visual + Carrinho Lateral -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            
+            <!-- Coluna Esquerda: Vitrine Visual de Produtos -->
+            <div class="lg:col-span-7 space-y-3">
+              <!-- Category pills & Search -->
+              <div class="flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="pdvCategoryPills">
+                  <button onclick="app.filterPDVCategory('')" data-cat="" class="pdv-cat-btn px-3 py-1.5 text-xs font-bold rounded-xl bg-brand-600 text-white transition shrink-0">Todos</button>
+                  <button onclick="app.filterPDVCategory('Acessórios')" data-cat="Acessórios" class="pdv-cat-btn px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition shrink-0">Acessórios</button>
+                  <button onclick="app.filterPDVCategory('Carregadores')" data-cat="Carregadores" class="pdv-cat-btn px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition shrink-0">Carregadores</button>
+                  <button onclick="app.filterPDVCategory('Áudio')" data-cat="Áudio" class="pdv-cat-btn px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition shrink-0">Áudio</button>
+                  <button onclick="app.filterPDVCategory('Peças')" data-cat="Peças" class="pdv-cat-btn px-3 py-1.5 text-xs font-semibold rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition shrink-0">Telas & Baterias</button>
+                </div>
+                <div class="relative sm:w-52">
+                  <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                  <input id="pdvSearchInput" oninput="app.renderPDVGrid()" type="search" placeholder="Buscar peça..." class="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none">
+                </div>
+              </div>
+
+              <!-- Products Grid -->
+              <div id="pdvProductsGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <!-- Populated by app.renderPDVGrid() -->
+              </div>
+            </div>
+
+            <!-- Coluna Direita: Carrinho de Balcão e Fechamento de Venda -->
+            <div class="lg:col-span-5 space-y-4">
+              <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 sticky top-20">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                      <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                      <h4 class="font-extrabold text-slate-900 text-sm">Carrinho de Balcão</h4>
+                      <p class="text-[11px] text-slate-400">Itens selecionados para saída</p>
+                    </div>
+                  </div>
+                  <span id="vbCarrinhoCount" class="text-xs font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">0 itens</span>
+                </div>
+
+                <!-- Tabela de Itens no Carrinho -->
+                <div class="overflow-y-auto max-h-56 divide-y divide-slate-100" id="vbCarrinhoItens">
+                  <p class="text-xs text-slate-400 text-center py-6">O carrinho está vazio. Adicione produtos acima.</p>
+                </div>
+
+                <!-- Dados do Cliente e Pagamento -->
+                <div class="pt-3 border-t border-slate-100 space-y-2.5 text-xs">
+                  <div>
+                    <label class="block font-bold text-slate-700 mb-1">Cliente</label>
+                    <input id="vbClienteInput" type="text" value="Cliente Loja" placeholder="Nome do cliente" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none">
+                  </div>
+
+                  <div>
+                    <label class="block font-bold text-slate-700 mb-1">Forma de Pagamento</label>
+                    <select id="vbFormaSelect" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 focus:outline-none">
+                      <option value="Pix">PIX (Chave / QR Code)</option>
+                      <option value="Dinheiro">Dinheiro (Espécie)</option>
+                      <option value="Cartão de Débito">Cartão de Débito</option>
+                      <option value="Cartão de Crédito">Cartão de Crédito</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Totalizador -->
+                <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-500">Total a Pagar:</span>
+                  <span id="vbTotalDisplay" class="text-xl font-black text-emerald-600">R$ 0,00</span>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="flex gap-2">
+                  <button type="button" onclick="app.clearCart()" class="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition cursor-pointer">
+                    Limpar
+                  </button>
+                  <button type="button" onclick="app.confirmDirectBalcaoSale()" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-extrabold text-xs rounded-xl transition shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-1.5 cursor-pointer">
+                    <i data-lucide="check" class="w-4 h-4"></i>
+                    <span>Finalizar Venda & Baixar Estoque</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- PAINEL 2: ESTOQUE DE PEÇAS & PRODUTOS -->
+        <div id="pdvPanelEstoque" class="hidden space-y-4">
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="p-3 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div class="relative w-full sm:w-80">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input id="estoqueSearchInput" oninput="app.renderEstoqueTable()" type="search" placeholder="Filtrar por nome, categoria ou código..." class="pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none w-full">
+              </div>
+              <div class="flex items-center gap-2">
+                <span id="estoqueStatsBadge" class="text-xs font-semibold text-slate-500">0 itens cadastrados</span>
+                <button onclick="app.openNewProductModal()" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1 shadow-sm">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i> Novo Produto
+                </button>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                  <tr>
+                    <th class="p-3">Produto / Peça</th>
+                    <th class="p-3">Categoria</th>
+                    <th class="p-3 text-center">Saldo em Estoque</th>
+                    <th class="p-3">Custo de Compra</th>
+                    <th class="p-3">Preço de Venda</th>
+                    <th class="p-3 text-right">Ações de Estoque</th>
+                  </tr>
+                </thead>
+                <tbody id="estoqueTableBody" class="divide-y divide-slate-100 font-medium">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAINEL 3: HISTÓRICO DE VENDAS BALCÃO -->
+        <div id="pdvPanelHistorico" class="hidden space-y-4">
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="p-3.5 border-b border-slate-100 flex items-center justify-between">
+              <h4 class="font-extrabold text-slate-800 text-xs sm:text-sm flex items-center gap-2">
+                <i data-lucide="history" class="w-4 h-4 text-emerald-600"></i> Histórico de Vendas de Balcão
+              </h4>
+              <span id="vbHistoricoCount" class="text-xs font-semibold text-slate-500">0 vendas registradas</span>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                  <tr>
+                    <th class="p-3">Data/Hora</th>
+                    <th class="p-3">Cliente</th>
+                    <th class="p-3">Itens Vendidos</th>
+                    <th class="p-3">Pagamento</th>
+                    <th class="p-3 text-right">Valor Total</th>
+                  </tr>
+                </thead>
+                <tbody id="vbHistoricoBody" class="divide-y divide-slate-100 font-medium">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===================================================================
+           VIEW 4: ESTOQUE DE PEÇAS & MOVIMENTAÇÃO (Atalho Direto do Menu)
+           =================================================================== -->
+      <section id="viewEstoque" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <span>Estoque de Peças & Produtos</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Controle de Peças</span>
+              </h2>
+              <p class="text-xs text-slate-500">Entradas, saídas manuais, custos de reposição e alertas de estoque baixo</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="app.navigate('pdv')" class="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs rounded-xl border border-purple-200 transition flex items-center gap-1.5">
+              <i data-lucide="shopping-cart" class="w-4 h-4"></i> Abrir Venda Balcão
+            </button>
+            <button onclick="app.openNewProductModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-brand-500/20">
+              <i data-lucide="plus" class="w-4 h-4"></i> Novo Produto
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div class="p-3 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="relative w-full sm:w-80">
+              <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input id="estoqueSearchInputDirect" oninput="app.renderEstoqueTable()" type="search" placeholder="Filtrar por nome, SKU ou categoria..." class="pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none w-full">
+            </div>
+            <span id="estoqueStatsBadgeDirect" class="text-xs font-semibold text-slate-500">0 itens cadastrados</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                <tr>
+                  <th class="p-3">Produto / Peça</th>
+                  <th class="p-3">Categoria</th>
+                  <th class="p-3 text-center">Saldo em Estoque</th>
+                  <th class="p-3">Custo de Compra</th>
+                  <th class="p-3">Preço de Venda</th>
+                  <th class="p-3 text-right">Ações de Estoque</th>
+                </tr>
+              </thead>
+              <tbody id="estoqueTableBodyDirect" class="divide-y divide-slate-100 font-medium">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           VIEW: FORNECEDORES DE PEÇAS & COMPONENTES
+           =================================================================== -->
+      <section id="viewFornecedores" class="hidden space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <span>Fornecedores</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Peças & Componentes</span>
+              </h2>
+              <p class="text-xs text-slate-500">Contatos de distribuidores de telas, baterias e acessórios com WhatsApp direto</p>
+            </div>
+          </div>
+          <button onclick="fornecedoresManager.openNewModal()" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-brand-500/20">
+            <i data-lucide="plus" class="w-4 h-4"></i> Novo Fornecedor
+          </button>
+        </div>
+
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center">
+          <div class="relative flex-1 w-full">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="fornecedoresSearchInput" oninput="fornecedoresManager.render()" type="search" placeholder="Buscar por fornecedor, especialidade, marca ou cidade..." class="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+          <span id="fornecedoresTotalBadge" class="text-xs font-semibold text-slate-500 shrink-0">0 fornecedores</span>
+        </div>
+
+        <div id="fornecedoresContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Rendered dynamically -->
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           VIEW 5: HISTÓRICO DE CLIENTES (Matching Photo 1 Card 3)
+           =================================================================== -->
+      <section id="viewClientes" class="hidden space-y-4">
+        <div class="flex items-center gap-3">
+          <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+          </button>
+          <div>
+            <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Histórico de Clientes</h2>
+            <p class="text-xs text-slate-500">Localize todos os consertos, aparelhos e atendimentos anteriores de cada cliente</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="relative">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="clientesSearchInput" oninput="app.renderClientesList()" type="search" placeholder="Buscar por nome do cliente, WhatsApp ou modelo do aparelho..." class="w-full pl-10 pr-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 transition">
+          </div>
+        </div>
+
+        <div id="clientesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Rendered dynamically -->
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           VIEW: BIBLIOTECA DE EBOOKS & ESQUEMAS ELÉTRICOS
+           =================================================================== -->
+      <section id="viewEbooks" class="hidden space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <span>Biblioteca de eBooks</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">Manuais & Esquemas</span>
+              </h2>
+              <p class="text-xs text-slate-500">Esquemas elétricos, manuais de serviço e guias práticos de bancada para consulta rápida</p>
+            </div>
+          </div>
+          <button onclick="ebooksManager.openNewModal()" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-brand-500/20 self-start sm:self-auto">
+            <i data-lucide="plus" class="w-4 h-4"></i> Novo eBook / Manual
+          </button>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="ebooksSearchInput" oninput="ebooksManager.render()" type="search" placeholder="Buscar por título, modelo, componente ou defeito..." class="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+            <select id="ebooksFilterMarca" onchange="ebooksManager.render()" class="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none">
+              <option value="">Todas as marcas</option>
+              <option value="Apple">Apple / iPhone</option>
+              <option value="Samsung">Samsung</option>
+              <option value="Motorola">Motorola</option>
+              <option value="Xiaomi">Xiaomi</option>
+              <option value="Multimarcas">Multimarcas</option>
+              <option value="Geral">Geral / Eletrônica</option>
+            </select>
+            <select id="ebooksFilterCategoria" onchange="ebooksManager.render()" class="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none">
+              <option value="">Todas categorias</option>
+              <option value="Esquema Elétrico">Esquema Elétrico</option>
+              <option value="Manual de Serviço">Manual de Serviço</option>
+              <option value="Microsoldagem">Microsoldagem</option>
+              <option value="Troca de Vidro">Troca de Vidro</option>
+              <option value="Injeção de Tensão">Injeção de Tensão</option>
+              <option value="Apostila">Apostila Completa</option>
+            </select>
+            <span id="ebooksTotalBadge" class="text-xs font-semibold text-slate-500 whitespace-nowrap px-2">0 materiais</span>
+          </div>
+        </div>
+
+        <div id="ebooksContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           VIEW: VIDEOAULAS & TREINAMENTOS TÉCNICOS
+           =================================================================== -->
+      <section id="viewVideoaulas" class="hidden space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <span>Videoaulas Técnicas</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">Treinamento de Bancada</span>
+              </h2>
+              <p class="text-xs text-slate-500">Aulas práticas de reparos complexos, reconstrução de trilhas, reballing e macetes de bancada</p>
+            </div>
+          </div>
+          <button onclick="videoaulasManager.openNewModal()" class="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-brand-500/20 self-start sm:self-auto">
+            <i data-lucide="plus" class="w-4 h-4"></i> Nova Videoaula
+          </button>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input id="videoaulasSearchInput" oninput="videoaulasManager.render()" type="search" placeholder="Buscar por tema da aula, modelo, defeito ou procedimento..." class="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+            <select id="videoaulasFilterMarca" onchange="videoaulasManager.render()" class="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none">
+              <option value="">Todas as marcas</option>
+              <option value="Apple">Apple / iPhone</option>
+              <option value="Samsung">Samsung</option>
+              <option value="Motorola">Motorola</option>
+              <option value="Xiaomi">Xiaomi</option>
+              <option value="Multimarcas">Multimarcas</option>
+              <option value="Geral">Geral / Ferramentas</option>
+            </select>
+            <select id="videoaulasFilterCategoria" onchange="videoaulasManager.render()" class="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none">
+              <option value="">Todas categorias</option>
+              <option value="Microsoldagem">Microsoldagem</option>
+              <option value="Troca de Vidro / OCA">Troca de Vidro / OCA</option>
+              <option value="Diagnóstico de Carga">Diagnóstico de Carga</option>
+              <option value="Reballing CPU/Memória">Reballing CPU/Memória</option>
+              <option value="Desbloqueio / Software">Desbloqueio / Software</option>
+              <option value="Eletrônica Básica">Eletrônica Básica</option>
+            </select>
+            <span id="videoaulasTotalBadge" class="text-xs font-semibold text-slate-500 whitespace-nowrap px-2">0 aulas</span>
+          </div>
+        </div>
+
+        <div id="videoaulasContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           VIEW 6: FINANCEIRO & CAIXA (Matching Photo 1 Card 6)
+           =================================================================== -->
+      <section id="viewFinanceiro" class="hidden space-y-5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Financeiro da Loja</h2>
+              <p class="text-xs text-slate-500">Entradas, saídas, custo de peças e lucro líquido consolidado</p>
+            </div>
+          </div>
+          <button onclick="app.openNewExpenseModal()" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="plus" class="w-4 h-4"></i> Lançar Despesa
+          </button>
+        </div>
+
+        <!-- Financial KPI Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-semibold text-slate-500">Faturamento Total</p>
+            <h3 id="finTotalFaturamento" class="text-xl sm:text-2xl font-black text-slate-900 mt-1">R$ 0,00</h3>
+            <p class="text-[11px] text-slate-400 mt-1">OS + Vendas PDV</p>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-semibold text-slate-500">Custo de Peças</p>
+            <h3 id="finTotalCusto" class="text-xl sm:text-2xl font-black text-rose-600 mt-1">R$ 0,00</h3>
+            <p class="text-[11px] text-slate-400 mt-1">Peças aplicadas e vendidas</p>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-semibold text-slate-500">Despesas da Loja</p>
+            <h3 id="finTotalDespesas" class="text-xl sm:text-2xl font-black text-amber-600 mt-1">R$ 0,00</h3>
+            <p class="text-[11px] text-slate-400 mt-1">Aluguel, contas, ferramentas</p>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
+            <p class="text-xs font-semibold text-emerald-700">Lucro Líquido Real</p>
+            <h3 id="finTotalLucro" class="text-xl sm:text-2xl font-black text-emerald-600 mt-1">R$ 0,00</h3>
+            <p class="text-[11px] text-emerald-600/80 mt-1">Faturamento − Custos − Despesas</p>
+          </div>
+        </div>
+
+        <!-- Cash flow list -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
+          <h3 class="font-bold text-slate-900 text-sm">Extrato Recente do Caixa</h3>
+          <div id="finExtratoContainer" class="divide-y divide-slate-100 text-xs">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           VIEW: GESTÃO DE FUNCIONÁRIOS (Quadro de Funcionários & Produtividade)
+           =================================================================== -->
+      <section id="viewFuncionarios" class="hidden space-y-5">
+        <!-- Top Bar with Subtabs -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <i data-lucide="users-round" class="w-6 h-6 text-brand-600"></i>
+                <span>Gestão de Funcionários</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700">Equipe CH Cell</span>
+              </h2>
+              <p class="text-xs text-slate-500">Cadastre técnicos e atendentes, edite informações e acompanhe a produtividade das OS</p>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <button onclick="equipeManager.openNewEmployeeModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-brand-500/20">
+              <i data-lucide="user-plus" class="w-4 h-4"></i> Novo Funcionário
+            </button>
+            <button onclick="app.navigate('acessos')" class="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs rounded-xl border border-purple-200 transition flex items-center gap-1.5">
+              <i data-lucide="shield-check" class="w-4 h-4"></i> Acessos & Senhas
+            </button>
+          </div>
+        </div>
+
+        <!-- Subtabs Navigation -->
+        <div class="flex border-b border-slate-200 text-xs font-bold gap-2">
+          <button class="px-4 py-2.5 border-b-2 border-brand-600 text-brand-600 flex items-center gap-2">
+            <i data-lucide="users" class="w-4 h-4"></i> Quadro de Funcionários
+          </button>
+          <button onclick="app.navigate('acessos')" class="px-4 py-2.5 text-slate-500 hover:text-slate-800 flex items-center gap-2 transition">
+            <i data-lucide="shield-check" class="w-4 h-4 text-purple-600"></i> Gestão de Acessos & Permissões
+          </button>
+        </div>
+
+        <!-- KPI Metrics Grid (From Old Project) -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <i data-lucide="users" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold text-slate-500">Funcionários Ativos</p>
+              <h3 id="funAtivosCount" class="text-xl font-black text-slate-900">0</h3>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold text-slate-500">OS Vinculadas</p>
+              <h3 id="funOSCount" class="text-xl font-black text-slate-900">0</h3>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold text-slate-500">OS Entregues</p>
+              <h3 id="funEntreguesCount" class="text-xl font-black text-slate-900">0</h3>
+            </div>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <i data-lucide="dollar-sign" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-[11px] font-semibold text-slate-500">Faturamento das OS</p>
+              <h3 id="funFaturamentoTotal" class="text-xl font-black text-slate-900">R$ 0,00</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Bar -->
+        <div class="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-2.5 items-center justify-between">
+          <div class="relative w-full sm:w-80">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input id="funSearchInput" oninput="equipeManager.renderFuncionariosView()" type="text" placeholder="Buscar por nome, função, email..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-brand-500">
+          </div>
+          
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <select id="funFilterCargo" onchange="equipeManager.renderFuncionariosView()" class="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
+              <option value="">Todos os Cargos</option>
+              <option value="Técnico">Técnico</option>
+              <option value="Atendente">Atendente</option>
+              <option value="Gerente">Gerente</option>
+              <option value="Administrador">Administrador</option>
+              <option value="Outros">Outros</option>
+            </select>
+            <select id="funFilterStatus" onchange="equipeManager.renderFuncionariosView()" class="p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
+              <option value="">Todas as Situações</option>
+              <option value="ativo">Apenas Ativos</option>
+              <option value="inativo">Apenas Inativos</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Employee List Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div class="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+              <i data-lucide="users" class="w-4 h-4 text-brand-600"></i> Quadro de Colaboradores
+            </h3>
+            <span id="funTotalBadge" class="text-xs font-semibold text-slate-500">0 cadastrados</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                <tr>
+                  <th class="p-3">Nome Completo</th>
+                  <th class="p-3">Cargo / Função</th>
+                  <th class="p-3">E-mail de Login</th>
+                  <th class="p-3">Telefone / WhatsApp</th>
+                  <th class="p-3">Situação</th>
+                  <th class="p-3">Acesso ao Sistema</th>
+                  <th class="p-3 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="funTableBody" class="divide-y divide-slate-100 font-medium">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Productivity Ranking Table (Old Project Feature) -->
+        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div class="p-3.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <i data-lucide="trending-up" class="w-4 h-4 text-emerald-600"></i> Produtividade por Funcionário
+              </h3>
+              <p class="text-[11px] text-slate-500">OS vinculadas ao colaborador, entregas concluídas e faturamento gerado</p>
+            </div>
+            <span class="text-xs font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">Desempenho</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                <tr>
+                  <th class="p-3">Colaborador</th>
+                  <th class="p-3">Função</th>
+                  <th class="p-3 text-center">OS Vinculadas</th>
+                  <th class="p-3 text-center">OS Entregues</th>
+                  <th class="p-3 text-center">Taxa de Conclusão</th>
+                  <th class="p-3 text-right">Faturamento das OS</th>
+                </tr>
+              </thead>
+              <tbody id="funRankingBody" class="divide-y divide-slate-100 font-medium">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================================
+           VIEW: GESTÃO DE ACESSOS & PERMISSÕES (Fase 3C - Senhas & Permissões)
+           =================================================================== -->
+      <section id="viewAcessos" class="hidden space-y-5">
+        <!-- Top Bar with Subtabs -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div>
+              <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-6 h-6 text-purple-600"></i>
+                <span>Gestão de Acessos & Permissões</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Fase 3C Protegida</span>
+              </h2>
+              <p class="text-xs text-slate-500">Somente o administrador principal pode configurar permissões e criar senhas provisórias</p>
+            </div>
+          </div>
+          
+          <button onclick="app.goBack()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> Voltar
+          </button>
+        </div>
+
+        <!-- Subtabs Navigation -->
+        <div class="flex border-b border-slate-200 text-xs font-bold gap-2">
+          <button onclick="app.navigate('funcionarios')" class="px-4 py-2.5 text-slate-500 hover:text-slate-800 flex items-center gap-2 transition">
+            <i data-lucide="users" class="w-4 h-4 text-brand-600"></i> Quadro de Funcionários
+          </button>
+          <button class="px-4 py-2.5 border-b-2 border-purple-600 text-purple-700 flex items-center gap-2">
+            <i data-lucide="shield-check" class="w-4 h-4"></i> Gestão de Acessos & Permissões
+          </button>
+        </div>
+
+        <!-- Permissions & Access Control Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          
+          <!-- Access Status & Permissions Card -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <i data-lucide="shield" class="w-4 h-4 text-purple-600"></i> Permissões Individuais
+              </h3>
+              <button onclick="equipeManager.loadAccessData()" class="text-xs font-bold text-brand-600 hover:underline flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Atualizar
+              </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Selecione o Funcionário:</label>
+                <select id="accSelectFuncionario" onchange="equipeManager.renderSelectedAccess()" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                  <!-- Populated dynamically -->
+                </select>
+              </div>
+
+              <!-- Status Box -->
+              <div id="accStatusBanner" class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-600 font-semibold">Situação do Acesso:</span>
+                  <span id="accStatusBadge" class="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-200 text-slate-700">—</span>
+                </div>
+                <p id="accStatusHint" class="text-[11px] text-slate-500 leading-relaxed">Selecione um funcionário acima para configurar.</p>
+                <button id="btnAlternarStatusAcesso" onclick="equipeManager.toggleAccessStatus()" class="w-full py-2 font-bold text-xs rounded-xl transition hidden">
+                  <!-- Liberar / Bloquear -->
+                </button>
+              </div>
+
+              <!-- Presets -->
+              <div class="space-y-1.5 pt-1">
+                <label class="block font-semibold text-slate-700">Modelos Prontos de Permissões:</label>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" onclick="equipeManager.applyPreset('atendente')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition">
+                    👩‍💼 Atendente
+                  </button>
+                  <button type="button" onclick="equipeManager.applyPreset('tecnico')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition">
+                    🛠️ Técnico
+                  </button>
+                  <button type="button" onclick="equipeManager.applyPreset('gerente')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition">
+                    📋 Gerente
+                  </button>
+                  <button type="button" onclick="equipeManager.clearAllPermissions()" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl transition">
+                    ❌ Desmarcar Todas
+                  </button>
+                </div>
+                <p id="accPresetPreview" class="text-[11px] text-slate-500 mt-1 italic">
+                  Selecione um modelo para preencher as caixas abaixo. Nada é salvo até clicar no botão Salvar.
+                </p>
+              </div>
+
+              <!-- Checkbox Catalog -->
+              <div class="space-y-2 pt-2">
+                <label class="block font-semibold text-slate-700">Catálogo de Permissões:</label>
+                <div id="accPermissionsCatalog" class="space-y-3 max-h-72 overflow-y-auto pr-1">
+                  <!-- Populated by permissions catalog -->
+                </div>
+              </div>
+
+              <button id="btnSalvarPermissoes" onclick="equipeManager.savePermissions()" class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition shadow-md shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-2">
+                <i data-lucide="check" class="w-4 h-4"></i> Salvar Permissões no Supabase
+              </button>
+            </div>
+          </div>
+
+          <!-- Create Login Form Card -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <i data-lucide="key-round" class="w-4 h-4 text-brand-600"></i> Criar ou Redefinir Senha do Funcionário
+            </h3>
+
+            <p class="text-xs text-slate-500 leading-relaxed">
+              Crie ou atualize o acesso protegido do funcionário no Supabase. O funcionário iniciará com <b>troca obrigatória de senha</b> no primeiro login e <b>acesso desativado</b> até sua liberação expressa.
+            </p>
+
+            <form id="formCriarLogin" onsubmit="equipeManager.handleCreateLogin(event)" class="space-y-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">E-mail do Funcionário *</label>
+                <input id="accCreateEmail" type="email" required placeholder="funcionario@exemplo.com" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Senha Provisória (mínimo 12 caracteres) *</label>
+                <input id="accCreatePassword" type="password" minlength="12" required placeholder="••••••••••••" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                <p class="text-[10px] text-slate-400 mt-0.5">Use letras, números e símbolos (mínimo 12 caracteres)</p>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Confirmar Senha Provisória *</label>
+                <input id="accCreateConfirm" type="password" minlength="12" required placeholder="••••••••••••" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              </div>
+
+              <p id="accCreateStatus" class="text-xs font-semibold text-slate-600 min-h-[1rem]" role="status"></p>
+
+              <button id="btnCriarLoginSubmit" type="submit" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                <i data-lucide="lock" class="w-4 h-4"></i> Criar / Atualizar Senha no Supabase
+              </button>
+            </form>
+
+            <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-200/60 text-[11px] text-amber-800 space-y-1">
+              <p class="font-bold flex items-center gap-1.5 text-amber-900">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0"></i> Regras de Segurança (Fase 3C):
+              </p>
+              <ul class="list-disc pl-4 space-y-0.5 text-amber-900/80">
+                <li>O login criado começa desativado por padrão.</li>
+                <li>No primeiro acesso, o funcionário será obrigado a cadastrar sua senha pessoal.</li>
+                <li>O administrador não tem acesso à senha pessoal que o funcionário cadastrar.</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- VIEW ALIAS: Mantém compatibilidade com viewEquipe -->
+      <section id="viewEquipe" class="hidden space-y-5">
+        <div class="p-4 bg-white rounded-2xl border border-slate-200 text-center">
+          <p class="text-xs text-slate-500">Redirecionando para a Gestão de Funcionários...</p>
+        </div>
+      </section>
+
+      <!-- MODAL NOVO / EDITAR FUNCIONÁRIO (Completo) -->
+      <div id="modalFuncionario" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3">
+        <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 id="funModalTitle" class="font-extrabold text-slate-900 text-base">Novo Funcionário</h3>
+            <button onclick="equipeManager.closeEmployeeModal()" class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <form id="formFuncionario" onsubmit="equipeManager.handleSaveEmployee(event)" class="space-y-3 text-xs">
+            <input type="hidden" id="funEditId">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Nome Completo *</label>
+              <input id="funNome" type="text" required placeholder="Ex: Carlos Oliveira" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">E-mail de Acesso / Login</label>
+              <input id="funEmail" type="email" placeholder="carlos@exemplo.com" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Telefone / WhatsApp</label>
+                <input id="funTelefone" type="tel" placeholder="21999998888" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Função / Cargo</label>
+                <select id="funFuncao" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                  <option value="Técnico">Técnico</option>
+                  <option value="Atendente">Atendente</option>
+                  <option value="Gerente">Gerente</option>
+                  <option value="Administrador">Administrador</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Situação do Cadastro</label>
+              <select id="funSituacao" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                <option value="true">Ativo</option>
+                <option value="false">Inativo</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Observações Internas</label>
+              <textarea id="funObs" rows="2" placeholder="Especialidades, horários, anotações da equipe..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500"></textarea>
+            </div>
+
+            <div class="flex gap-2 pt-2">
+              <button type="button" onclick="equipeManager.closeEmployeeModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition">
+                Cancelar
+              </button>
+              <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md shadow-brand-500/20 transition">
+                Salvar Funcionário
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- ===================================================================
+           VIEW 7: CONFIGURAÇÕES, IMPRESSÃO & SINCRONIZAÇÃO
+           =================================================================== -->
+      <section id="viewConfiguracoes" class="hidden space-y-5">
+        <div class="flex items-center gap-3">
+          <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+          </button>
+          <div>
+            <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Configurações & Impressão</h2>
+            <p class="text-xs text-slate-500">Personalize os dados da sua assistência, termos de garantia e modelos de impressão</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          
+          <!-- Shop Info Card -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <i data-lucide="store" class="w-4 h-4 text-brand-600"></i> Dados da Assistência Técnica
+            </h3>
+            
+            <div class="space-y-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Nome da Loja</label>
+                <input id="cfgStoreName" type="text" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl" value="CH Cell Assistência Técnica">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">WhatsApp para contato com clientes</label>
+                <input id="cfgStoreWhatsApp" type="text" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl" placeholder="21999999999" value="21987654321">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Endereço da Loja</label>
+                <input id="cfgStoreAddress" type="text" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl" value="Rua Principal, 120 - Centro">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Termos de Garantia (Aparece no recibo e na OS impressa)</label>
+                <textarea id="cfgStoreWarranty" rows="3" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl">Garantia legal de 90 dias referente ao serviço executado e à peça substituída. Não cobre danos causados por quedas, oxidação por contato com líquidos ou intervenção de terceiros.</textarea>
+              </div>
+            </div>
+
+            <button onclick="app.saveShopConfig()" class="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition">
+              Salvar Dados da Loja
+            </button>
+          </div>
+
+          <!-- Printing & Backup Card -->
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+            <h3 class="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <i data-lucide="printer" class="w-4 h-4 text-brand-600"></i> Padrão de Impressão & Backup
+            </h3>
+
+            <div class="space-y-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-600 mb-1">Modelo de Impressão Padrão</label>
+                <select id="cfgPrintModel" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                  <option value="thermal-80">Impressora Térmica 80 mm (Balcão)</option>
+                  <option value="thermal-58">Impressora Térmica 58 mm (Mini)</option>
+                  <option value="a4">Impressora Comum A4 (Folha inteira com termo)</option>
+                </select>
+              </div>
+
+              <div class="pt-2 border-t border-slate-100">
+                <label class="block font-semibold text-slate-600 mb-1">Backup Completo dos Dados</label>
+                <p class="text-[11px] text-slate-400 mb-2">Exporte todas as suas OS, clientes, fotos e estoque em um arquivo JSON seguro.</p>
+                <div class="flex gap-2">
+                  <button onclick="app.exportBackupJSON()" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Exportar Backup
+                  </button>
+                  <button onclick="document.getElementById('importBackupInput').click()" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+                    <i data-lucide="upload" class="w-3.5 h-3.5"></i> Restaurar
+                  </button>
+                  <input id="importBackupInput" type="file" accept=".json" onchange="app.importBackupJSON(event)" hidden>
+                </div>
+              </div>
+
+              <div class="pt-2 border-t border-slate-100">
+                <label class="block font-semibold text-slate-600 mb-1">Dados de Teste Rápidos</label>
+                <button onclick="app.loadSampleData()" class="w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5">
+                  <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Recarregar Exemplos Prontos
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- =====================================================================
+       MOBILE BOTTOM NAVIGATION BAR
+       ===================================================================== -->
+  <nav id="bottomNav" class="no-print md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-2 py-1.5 flex items-center justify-around pb-safe">
+    <button onclick="app.navigate('dashboard')" data-mobile-nav="dashboard" class="mobile-nav-btn flex flex-col items-center gap-0.5 p-1 text-brand-600 font-bold">
+      <i data-lucide="home" class="w-5 h-5"></i>
+      <span class="text-[10px]">Início</span>
+    </button>
+    <button onclick="app.navigate('os-list')" data-mobile-nav="os-list" class="mobile-nav-btn flex flex-col items-center gap-0.5 p-1 text-slate-500 font-semibold">
+      <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+      <span class="text-[10px]">OS</span>
+    </button>
+    <button onclick="app.openNewOSModal()" class="flex flex-col items-center justify-center -mt-5">
+      <div class="w-12 h-12 rounded-full bg-brand-600 text-white flex items-center justify-center shadow-lg shadow-brand-500/40 active:scale-95 transition">
+        <i data-lucide="plus" class="w-6 h-6 stroke-[2.5]"></i>
+      </div>
+      <span class="text-[9px] font-bold text-slate-600 mt-0.5">Nova OS</span>
+    </button>
+    <button onclick="app.navigate('pdv')" data-mobile-nav="pdv" class="mobile-nav-btn flex flex-col items-center gap-0.5 p-1 text-slate-500 font-semibold">
+      <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+      <span class="text-[10px]">PDV</span>
+    </button>
+    <button onclick="app.navigate('clientes')" data-mobile-nav="clientes" class="mobile-nav-btn flex flex-col items-center gap-0.5 p-1 text-slate-500 font-semibold">
+      <i data-lucide="users" class="w-5 h-5"></i>
+      <span class="text-[10px]">Clientes</span>
+    </button>
+  </nav>
+
+  <!-- =====================================================================
+       MODAL 1: ABERTURA / EDIÇÃO DE ORDEM DE SERVIÇO (Foto 3 Inspired)
+       ===================================================================== -->
+  <div id="modalOS" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto">
+      
+      <!-- Modal Header -->
+      <div class="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center">
+            <i data-lucide="file-text" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 id="osModalTitle" class="text-base sm:text-lg font-extrabold text-slate-900 leading-none">Nova Ordem de Serviço</h3>
+            <p id="osModalSubtitle" class="text-xs text-slate-500 font-medium mt-1">Check-in de entrada e diagnóstico inicial</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="osModalCodeBadge" class="text-xs font-black px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">#A1B2C</span>
+          <button onclick="app.closeOSModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <form id="formOS" onsubmit="app.handleSaveOS(event)" class="space-y-6">
+          <input type="hidden" id="osEditId">
+
+          <!-- SECTION: DADOS DO CLIENTE -->
+          <div class="space-y-3">
+            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="user" class="w-3.5 h-3.5"></i> 1. Dados do Cliente
+            </h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Nome Completo *</label>
+                <input id="osClientName" type="text" required placeholder="Ex: João da Silva" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">WhatsApp / Celular *</label>
+                <input id="osClientPhone" type="tel" required placeholder="Ex: 21999998888" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- SECTION: DADOS DO APARELHO -->
+          <div class="space-y-3">
+            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> 2. Aparelho e Defeito
+            </h4>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Marca *</label>
+                <select id="osDeviceBrand" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium">
+                  <option value="Apple">Apple / iPhone</option>
+                  <option value="Samsung">Samsung</option>
+                  <option value="Motorola">Motorola</option>
+                  <option value="Xiaomi">Xiaomi</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Modelo *</label>
+                <input id="osDeviceModel" type="text" required placeholder="Ex: iPhone 13 Pro" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Cor</label>
+                <input id="osDeviceColor" type="text" placeholder="Ex: Azul Sierra" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Senha / Desenho</label>
+                <input id="osDevicePass" type="text" placeholder="Ex: 142536" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              </div>
+            </div>
+
+            <div class="text-xs">
+              <label class="block font-semibold text-slate-700 mb-1">Defeito Relatado pelo Cliente *</label>
+              <textarea id="osDefectReported" required rows="2" placeholder="Ex: Caiu no chão, tela trincada sem imagem, mas ainda vibra ao carregar..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl"></textarea>
+            </div>
+          </div>
+
+          <!-- SECTION: CHECKLIST INTERATIVO (Photo 3) -->
+          <div class="space-y-3 pt-1 border-t border-slate-100">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="check-square" class="w-3.5 h-3.5"></i> 3. Checklist de Check-in
+              </h4>
+              <button type="button" onclick="app.setAllChecklist('OK')" class="text-[11px] font-bold text-brand-600 hover:underline">
+                Marcar tudo como OK
+              </button>
+            </div>
+
+            <!-- Status Summary Counters (Photo 3 top bar: 4 OK, 1 ATENÇÃO, 1 NÃO TESTADO) -->
+            <div class="grid grid-cols-3 gap-2">
+              <div class="p-2 rounded-xl bg-emerald-50 border border-emerald-200/60 text-center">
+                <span id="counterCkOK" class="text-lg font-black text-emerald-700 block leading-tight">0</span>
+                <span class="text-[10px] font-bold text-emerald-800 uppercase tracking-wide">OK</span>
+              </div>
+              <div class="p-2 rounded-xl bg-rose-50 border border-rose-200/60 text-center">
+                <span id="counterCkWarn" class="text-lg font-black text-rose-700 block leading-tight">0</span>
+                <span class="text-[10px] font-bold text-rose-800 uppercase tracking-wide">ATENÇÃO</span>
+              </div>
+              <div class="p-2 rounded-xl bg-slate-100 border border-slate-200 text-center">
+                <span id="counterCkNA" class="text-lg font-black text-slate-600 block leading-tight">0</span>
+                <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wide">NÃO TESTADO</span>
+              </div>
+            </div>
+
+            <!-- Checklist Item Cards with 3 Buttons: OK, Atenção, Não test. -->
+            <div id="checklistItemsContainer" class="space-y-2">
+              <!-- Rendered dynamically by app.renderChecklistForm() -->
+            </div>
+
+            <div class="text-xs">
+              <label class="block font-semibold text-slate-700 mb-1">Avarias & Observações do Checklist</label>
+              <input id="osChecklistNotes" type="text" placeholder="Ex: Riscos na tampa traseira, lente da câmera com micro trincado..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+            </div>
+          </div>
+
+          <!-- SECTION: FOTOS DO APARELHO NA ENTRADA (Photo 2 Step 1) -->
+          <div class="space-y-3 pt-1 border-t border-slate-100">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <i data-lucide="camera" class="w-3.5 h-3.5"></i> 4. Fotos de Entrada (Prova da chegada)
+              </h4>
+              <span id="photosCountLabel" class="text-[11px] font-semibold text-slate-500">0 fotos anexadas</span>
+            </div>
+
+            <!-- Upload / Camera Buttons -->
+            <div class="flex flex-wrap gap-2">
+              <!-- Mobile direct camera trigger (capture="environment") -->
+              <label class="cursor-pointer px-3.5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs flex items-center gap-2 hover:bg-slate-800 transition shadow-sm">
+                <i data-lucide="camera" class="w-4 h-4"></i> Tirar Foto na Hora
+                <input type="file" accept="image/*" capture="environment" onchange="app.handlePhotoUpload(event)" hidden>
+              </label>
+
+              <!-- Gallery / File Upload -->
+              <label class="cursor-pointer px-3.5 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-2 hover:bg-slate-200 transition">
+                <i data-lucide="image" class="w-4 h-4"></i> Galeria de Fotos
+                <input type="file" accept="image/*" multiple onchange="app.handlePhotoUpload(event)" hidden>
+              </label>
+            </div>
+
+            <!-- Photos Thumbnail Preview Grid -->
+            <div id="osPhotosGallery" class="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- SECTION: ORÇAMENTO & VALORES -->
+          <div class="space-y-3 pt-1 border-t border-slate-100">
+            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="tag" class="w-3.5 h-3.5"></i> 5. Orçamento & Status Atual
+            </h4>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Status da OS *</label>
+                <select id="osStatusSelect" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                  <option value="Em Análise">🔵 Em Análise</option>
+                  <option value="Aguardando Peças">🟠 Aguardando Peças</option>
+                  <option value="Em Serviço">🟣 Em Serviço</option>
+                  <option value="Finalizado">🟢 Finalizado</option>
+                  <option value="Pago e Entregue">💰 Pago e Entregue</option>
+                  <option value="Cancelado">⚪ Cancelado</option>
+                </select>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Valor Total (R$) *</label>
+                <input id="osTotalValue" type="number" step="0.01" min="0" value="0.00" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Valor Já Pago (R$)</label>
+                <input id="osPaidValue" type="number" step="0.01" min="0" value="0.00" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Serviço a Executar</label>
+                <input id="osServiceDesc" type="text" placeholder="Ex: Troca de Tela Frontal Original + Limpeza" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Técnico Responsável</label>
+                <select id="osTechnicianSelect" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800">
+                  <option value="">Não atribuído</option>
+                </select>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Previsão de Conclusão</label>
+                <input id="osEstimatedDate" type="date" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal Footer Actions -->
+          <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2 shrink-0">
+            <button type="button" onclick="app.closeOSModal()" class="px-4 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition">
+              Cancelar
+            </button>
+            <button type="submit" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white text-xs font-bold rounded-xl transition shadow-md shadow-brand-500/25 flex items-center gap-1.5">
+              <i data-lucide="check" class="w-4 h-4"></i> Salvar OS
+            </button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 2: ACOMPANHAMENTO AO VIVO DO CLIENTE (Foto 4 Inspired)
+       Simula a tela pública que o cliente vê ao abrir o link do WhatsApp
+       ===================================================================== -->
+  <div id="modalPublicTracking" class="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-slate-100 rounded-[32px] max-w-sm w-full shadow-2xl border-4 border-slate-800 overflow-hidden flex flex-col max-h-[92vh]">
+      
+      <!-- iPhone Top Bar Simulation -->
+      <div class="bg-white px-5 pt-3 pb-2 flex items-center justify-between text-[11px] font-bold text-slate-800 border-b border-slate-100">
+        <span id="trackClockTime">9:41</span>
+        <div class="flex items-center gap-1.5 text-slate-700">
+          <i data-lucide="signal" class="w-3.5 h-3.5"></i>
+          <i data-lucide="wifi" class="w-3.5 h-3.5"></i>
+          <i data-lucide="battery" class="w-4 h-4"></i>
+        </div>
+      </div>
+
+      <!-- Public View Content (Scrollable) -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+        
+        <!-- Header Assistência -->
+        <div class="text-center space-y-1">
+          <div class="flex items-center justify-center gap-1.5 text-slate-700 text-xs font-semibold">
+            <i data-lucide="store" class="w-4 h-4 text-brand-600"></i>
+            <span id="publicStoreName">CH Cell Assistência</span>
+          </div>
+          <h3 class="font-extrabold text-slate-900 text-lg">Acompanhe seu reparo</h3>
+          
+          <!-- Live Badge (Photo 4: ● AO VIVO Atualiza em 7s) -->
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-xs font-extrabold">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-badge"></span>
+            <span>AO VIVO</span>
+            <span class="text-slate-400 font-normal">· Atualiza em <span id="trackCountdown">7s</span></span>
+          </div>
+        </div>
+
+        <!-- Greeting Card (Photo 4: OLÁ, JOÃO! iPhone 13 Pro, OS #A1B2C) -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider" id="publicClientGreeting">OLÁ, JOÃO!</p>
+              <h4 class="font-black text-slate-900 text-base" id="publicDeviceModel">iPhone 13 Pro</h4>
+              <p class="text-xs font-bold text-slate-500" id="publicOSNumber">OS #A1B2C</p>
+            </div>
+            <span id="publicStatusBadge" class="px-2.5 py-1 rounded-xl text-xs font-extrabold bg-purple-50 text-purple-700 border border-purple-200">
+              Em Serviço
+            </span>
+          </div>
+
+          <!-- Progress Bar (Photo 4: Etapa 3 de 5) -->
+          <div class="space-y-1.5 pt-1">
+            <div class="flex items-center justify-between text-xs font-bold">
+              <span id="publicStepLabel" class="text-slate-700">Etapa 3 de 5</span>
+              <span id="publicStepName" class="text-purple-600">Em Serviço</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div id="publicProgressBar" class="h-full bg-purple-600 rounded-full transition-all duration-500" style="width: 60%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vertical Timeline (Photo 4: 5 Etapas do Reparo) -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Etapas do Reparo</h4>
+          
+          <div class="relative timeline-track pl-8 space-y-5 text-xs">
+            
+            <!-- Step 1: Em Análise -->
+            <div id="stepTimeline1" class="relative">
+              <div class="step-icon absolute -left-8 top-0 w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[10px] z-10 shadow-sm">
+                <i data-lucide="search" class="w-3 h-3"></i>
+              </div>
+              <p class="font-bold text-slate-900">Em Análise</p>
+              <p class="text-[11px] text-slate-500">Diagnóstico técnico no balcão</p>
+            </div>
+
+            <!-- Step 2: Aguardando Peças -->
+            <div id="stepTimeline2" class="relative">
+              <div class="step-icon absolute -left-8 top-0 w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-[10px] z-10 shadow-sm">
+                <i data-lucide="package" class="w-3 h-3"></i>
+              </div>
+              <p class="font-bold text-slate-900">Aguardando Peças</p>
+              <p class="text-[11px] text-slate-500">Separando componente ou reposição</p>
+            </div>
+
+            <!-- Step 3: Em Serviço -->
+            <div id="stepTimeline3" class="relative">
+              <div class="step-icon absolute -left-8 top-0 w-6 h-6 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold text-[10px] z-10 shadow-sm">
+                <i data-lucide="wrench" class="w-3 h-3"></i>
+              </div>
+              <p class="font-bold text-purple-700">Em Serviço</p>
+              <p class="text-[11px] text-slate-500">Técnico trabalhando no aparelho</p>
+            </div>
+
+            <!-- Step 4: Finalizado -->
+            <div id="stepTimeline4" class="relative">
+              <div class="step-icon absolute -left-8 top-0 w-6 h-6 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center font-bold text-[10px] z-10">
+                <i data-lucide="check" class="w-3 h-3"></i>
+              </div>
+              <p class="font-bold text-slate-400">Finalizado</p>
+              <p class="text-[11px] text-slate-400">Pronto para testes e retirada</p>
+            </div>
+
+            <!-- Step 5: Pago e Entregue -->
+            <div id="stepTimeline5" class="relative">
+              <div class="step-icon absolute -left-8 top-0 w-6 h-6 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center font-bold text-[10px] z-10">
+                <i data-lucide="check-check" class="w-3 h-3"></i>
+              </div>
+              <p class="font-bold text-slate-400">Pago e Entregue</p>
+              <p class="text-[11px] text-slate-400">Garantia ativada com sucesso</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Checklist Summary Card (Public Transparency) -->
+        <div id="publicChecklistCard" class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2 text-xs">
+          <h4 class="font-bold text-slate-900">Condições Registradas na Entrada</h4>
+          <div id="publicChecklistSummary" class="text-slate-600 space-y-1">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Action Buttons for the Client -->
+        <div class="space-y-2 pt-2">
+          <a id="btnPublicWhatsApp" href="#" target="_blank" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition">
+            <i data-lucide="message-circle" class="w-4 h-4"></i> Falar com o Técnico no WhatsApp
+          </a>
+          <button onclick="app.closeQuickTrackingModal()" class="w-full py-2 bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl hover:bg-slate-300 transition">
+            Fechar Prévia
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 3: CHECKOUT PDV / FINALIZAR VENDA
+       ===================================================================== -->
+  <div id="modalCheckout" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-extrabold text-slate-900 text-base">Finalizar Venda de Balcão</h3>
+        <button onclick="app.closeCheckoutModal()" class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Destino da Venda / Peça</label>
+          <select id="checkoutDestinationSelect" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold">
+            <option value="balcao">Venda Balcão Avulsa (Cliente de Loja)</option>
+            <!-- Open OS options populated dynamically -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Nome do Cliente (opcional)</label>
+          <input id="checkoutClientName" type="text" placeholder="Cliente Loja" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Forma de Pagamento</label>
+          <select id="checkoutPaymentMethod" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+            <option value="Pix">PIX (Chave ou QR Code)</option>
+            <option value="Dinheiro">Dinheiro</option>
+            <option value="Cartão de Débito">Cartão de Débito</option>
+            <option value="Cartão de Crédito">Cartão de Crédito</option>
+          </select>
+        </div>
+
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-1 text-center">
+          <p class="text-slate-500 text-xs font-medium">Total da Venda</p>
+          <h3 id="checkoutTotalDisplay" class="text-2xl font-black text-slate-900 leading-none">R$ 0,00</h3>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button onclick="app.closeCheckoutModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">
+          Voltar
+        </button>
+        <button onclick="app.confirmCheckoutSale()" class="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-xs rounded-xl transition shadow-md shadow-emerald-500/25 flex items-center justify-center gap-1.5">
+          <i data-lucide="check" class="w-4 h-4"></i> Concluir Venda
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL: CADASTRAR / EDITAR PRODUTO / PEÇA DO ESTOQUE
+       ===================================================================== -->
+  <div id="modalProduto" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+            <i data-lucide="package" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="modalProdutoTitulo" class="font-extrabold text-slate-900 text-base leading-tight">Novo Produto</h3>
+            <p class="text-[11px] text-slate-400">Cadastre ou edite uma peça no estoque</p>
+          </div>
+        </div>
+        <button type="button" onclick="app.closeProductModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="formProduto" onsubmit="app.handleSaveProduct(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="prodEditId">
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Nome do Produto / Peça *</label>
+          <input id="prodNome" required placeholder="Ex: Tela Frontal iPhone 13 OLED, Bateria S22, Cabo Tipo-C..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Categoria</label>
+            <select id="prodCategoria" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none">
+              <option value="Acessórios">Acessórios</option>
+              <option value="Carregadores">Carregadores & Cabos</option>
+              <option value="Áudio">Áudio & Fones</option>
+              <option value="Peças">Telas & Baterias (Peças)</option>
+              <option value="Ferramentas">Ferramentas & Insumos</option>
+              <option value="Outros">Outros</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Código / SKU (opcional)</label>
+            <input id="prodSku" placeholder="Ex: TEL-IP13-01" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Custo de Compra (R$) *</label>
+            <input id="prodCusto" type="number" step="0.01" min="0" required placeholder="0,00" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Preço de Venda (R$) *</label>
+            <input id="prodPreco" type="number" step="0.01" min="0" required placeholder="0,00" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-emerald-600 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Quantidade Inicial</label>
+            <input id="prodQtd" type="number" min="0" step="1" value="1" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-center focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Estoque Mínimo (Alerta)</label>
+            <input id="prodMinimo" type="number" min="0" step="1" value="2" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-center focus:outline-none">
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="app.closeProductModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition cursor-pointer">
+            Cancelar
+          </button>
+          <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black text-xs rounded-xl transition shadow-md shadow-brand-500/25 cursor-pointer">
+            Salvar Produto
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL: MOVIMENTAR ESTOQUE (ENTRADA / SAÍDA DE PEÇAS - EXATAMENTE COMO NO PROJETO ANTIGO)
+       ===================================================================== -->
+  <div id="modalMovimentarEstoque" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+            <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="movModalTitulo" class="font-extrabold text-slate-900 text-base leading-tight">Movimentar Estoque</h3>
+            <p id="movModalSaldoInfo" class="text-[11px] text-slate-500 font-medium">Saldo atual: 0 un.</p>
+          </div>
+        </div>
+        <button type="button" onclick="app.closeMovimentarModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="formMovimentar" onsubmit="app.handleSaveMovimentacao(event)" class="space-y-3.5 text-xs">
+        <input type="hidden" id="movProdId">
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1.5">Tipo de Movimentação *</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="border-2 border-emerald-500 bg-emerald-50/50 p-2.5 rounded-xl flex items-center gap-2 cursor-pointer font-bold text-emerald-800 text-[11px]">
+              <input type="radio" name="movTipoRadio" value="entrada" checked class="text-emerald-600">
+              <span>🟢 Entrada (+ Subir)</span>
+            </label>
+            <label class="border-2 border-rose-500 bg-rose-50/50 p-2.5 rounded-xl flex items-center gap-2 cursor-pointer font-bold text-rose-800 text-[11px]">
+              <input type="radio" name="movTipoRadio" value="saida" class="text-rose-600">
+              <span>🔴 Saída (- Abaixar)</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Quantidade de Peças / Unidades *</label>
+          <input id="movQtd" type="number" min="1" step="1" value="1" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-center text-base focus:outline-none focus:border-brand-500">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Motivo da Movimentação *</label>
+          <input id="movMotivo" required placeholder="Ex.: Compra de reposição, Venda avulsa, Ajuste de balanço, Uso em bancada..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+        </div>
+
+        <div class="flex gap-2 pt-3 border-t border-slate-100">
+          <button type="button" onclick="app.closeMovimentarModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition cursor-pointer">
+            Cancelar
+          </button>
+          <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-black text-xs rounded-xl transition shadow-md shadow-brand-500/25 cursor-pointer">
+            Registrar Alteração
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL: CADASTRAR / EDITAR FORNECEDOR
+       ===================================================================== -->
+  <div id="modalFornecedor" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <i data-lucide="truck" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="fornModalTitle" class="font-extrabold text-slate-900 text-base leading-tight">Novo Fornecedor</h3>
+            <p class="text-[11px] text-slate-400">Distribuidor de peças, telas ou ferramentas</p>
+          </div>
+        </div>
+        <button onclick="fornecedoresManager.closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="formFornecedor" onsubmit="fornecedoresManager.handleSave(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="fornEditId">
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Nome da Empresa / Distribuidor *</label>
+          <input id="fornNome" required placeholder="Ex: MegaTelas Distribuidora, Campinas Peças..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Marcas Atendidas</label>
+            <input id="fornMarca" placeholder="Ex: Apple, Samsung, Xiaomi..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Especialidade Principal</label>
+            <input id="fornEspecialidade" placeholder="Ex: Telas OLED, Baterias, CI de Carga..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">WhatsApp Comercial *</label>
+            <input id="fornWhatsApp" required placeholder="Ex: 11999998888 ou (11) 99999-8888" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Telefone Fixo / 0800</label>
+            <input id="fornTelefone" placeholder="Ex: (11) 3333-4444" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Cidade / Estado / Endereço</label>
+            <input id="fornEndereco" placeholder="Ex: Santa Ifigênia, São Paulo - SP" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Site / Catálogo Online</label>
+            <input id="fornSite" type="url" placeholder="https://..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Observações (Garantia, Frete, Pedido Mínimo)</label>
+          <textarea id="fornObservacoes" rows="2" placeholder="Ex: Troca de tela em até 90 dias com selo intacto. Frete grátis acima de R$ 500." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500"></textarea>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="fornecedoresManager.closeModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">
+            Cancelar
+          </button>
+          <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition shadow-md shadow-brand-500/25 flex items-center justify-center gap-1.5">
+            <i data-lucide="save" class="w-4 h-4"></i> Salvar Fornecedor
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL: CADASTRAR / EDITAR EBOOK & ESQUEMA
+       ===================================================================== -->
+  <div id="modalEbook" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <i data-lucide="book-open" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="ebookModalTitle" class="font-extrabold text-slate-900 text-base leading-tight">Novo eBook / Esquema</h3>
+            <p class="text-[11px] text-slate-400">Esquema elétrico, layout de placa ou manual de bancada</p>
+          </div>
+        </div>
+        <button onclick="ebooksManager.closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="formEbook" onsubmit="ebooksManager.handleSave(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="ebookEditId">
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Título do Material / Manual *</label>
+          <input id="ebookTitulo" required placeholder="Ex: Esquema Elétrico iPhone 13 Pro (Schematics & Boardview)" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Marca Principal</label>
+            <select id="ebookMarca" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+              <option value="Apple">Apple / iPhone</option>
+              <option value="Samsung">Samsung</option>
+              <option value="Motorola">Motorola</option>
+              <option value="Xiaomi">Xiaomi</option>
+              <option value="Multimarcas">Multimarcas</option>
+              <option value="Geral">Geral / Eletrônica</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Modelo / Linha</label>
+            <input id="ebookModelo" placeholder="Ex: iPhone 13 Pro / Max, Galaxy S21..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Categoria Técnica</label>
+            <select id="ebookCategoria" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+              <option value="Esquema Elétrico">Esquema Elétrico</option>
+              <option value="Manual de Serviço">Manual de Serviço</option>
+              <option value="Microsoldagem">Microsoldagem</option>
+              <option value="Troca de Vidro">Troca de Vidro</option>
+              <option value="Injeção de Tensão">Injeção de Tensão</option>
+              <option value="Apostila">Apostila Completa</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Link do Arquivo / PDF (Google Drive / URL) *</label>
+            <input id="ebookUrl" required type="url" placeholder="https://drive.google.com/..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Descrição / Destaques do Conteúdo</label>
+          <textarea id="ebookDescricao" rows="2" placeholder="Ex: Diagrama completo de linhas primárias, VDD_MAIN, conector de carga e mapa de tensões dos capacitores." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500"></textarea>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="ebooksManager.closeModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">
+            Cancelar
+          </button>
+          <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition shadow-md shadow-brand-500/25 flex items-center justify-center gap-1.5">
+            <i data-lucide="save" class="w-4 h-4"></i> Salvar eBook
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL: CADASTRAR / EDITAR VIDEOAULA
+       ===================================================================== -->
+  <div id="modalVideoaula" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 my-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+            <i data-lucide="play-circle" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="videoaulaModalTitle" class="font-extrabold text-slate-900 text-base leading-tight">Nova Videoaula</h3>
+            <p class="text-[11px] text-slate-400">Treinamento prático de bancada e procedimentos passo a passo</p>
+          </div>
+        </div>
+        <button onclick="videoaulasManager.closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <form id="formVideoaula" onsubmit="videoaulasManager.handleSave(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="videoaulaEditId">
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Título da Aula *</label>
+          <input id="videoaulaTitulo" required placeholder="Ex: Diagnóstico de fuga de corrente na placa do iPhone com câmera térmica" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Marca</label>
+            <select id="videoaulaMarca" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+              <option value="Apple">Apple / iPhone</option>
+              <option value="Samsung">Samsung</option>
+              <option value="Motorola">Motorola</option>
+              <option value="Xiaomi">Xiaomi</option>
+              <option value="Multimarcas">Multimarcas</option>
+              <option value="Geral">Geral / Ferramentas</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Modelo / Aparelho</label>
+            <input id="videoaulaModelo" placeholder="Ex: iPhone 11 / 12, Linha Moto G..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Categoria do Treinamento</label>
+            <select id="videoaulaCategoria" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500 font-medium">
+              <option value="Microsoldagem">Microsoldagem</option>
+              <option value="Troca de Vidro / OCA">Troca de Vidro / OCA</option>
+              <option value="Diagnóstico de Carga">Diagnóstico de Carga</option>
+              <option value="Reballing CPU/Memória">Reballing CPU/Memória</option>
+              <option value="Desbloqueio / Software">Desbloqueio / Software</option>
+              <option value="Eletrônica Básica">Eletrônica Básica</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Link do Vídeo (YouTube / Vimeo / Nuvem) *</label>
+            <input id="videoaulaUrl" required type="url" placeholder="https://www.youtube.com/watch?v=... ou Vimeo" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Resumo da Aula & Ferramentas Utilizadas</label>
+          <textarea id="videoaulaDescricao" rows="2" placeholder="Ex: Uso da fonte de bancada ajustada a 4.2V, teste com spray congelante e remoção de capacitor em curto com ferro TS100 a 380°C." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500"></textarea>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="videoaulasManager.closeModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">
+            Cancelar
+          </button>
+          <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition shadow-md shadow-brand-500/25 flex items-center justify-center gap-1.5">
+            <i data-lucide="save" class="w-4 h-4"></i> Salvar Videoaula
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL: PLAYER EMBEDDED PARA VIDEOAULAS
+       ===================================================================== -->
+  <div id="modalVideoPlayer" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-3">
+    <div class="bg-slate-900 rounded-3xl max-w-3xl w-full p-4 sm:p-5 shadow-2xl border border-slate-800 space-y-3">
+      <div class="flex items-center justify-between text-white border-b border-slate-800 pb-2">
+        <h3 id="playerModalTitle" class="font-bold text-sm sm:text-base truncate pr-3">Player de Treinamento</h3>
+        <button onclick="videoaulasManager.closePlayerModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div id="playerContainer" class="aspect-video w-full bg-black rounded-2xl overflow-hidden flex items-center justify-center text-slate-400">
+        <!-- Embedded iframe or video link dynamically injected -->
+      </div>
+
+      <div class="flex items-center justify-between pt-1">
+        <p id="playerModalDesc" class="text-xs text-slate-400 truncate max-w-[70%]"></p>
+        <a id="playerExternalLink" href="#" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition">
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Abrir na Fonte
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       PRINT TEMPLATE (Hidden on screen, populated dynamically for @media print)
+       ===================================================================== -->
+  <div id="printArea" class="print-only">
+    <!-- Populated by app.printOS() or app.printReceipt() -->
+  </div>
+
+  <!-- JavaScript Main Application Logic -->
+  <script src="./app.js?v=20261025_01"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js?v=20261025_01').then(reg => {
+          reg.update();
+        }).catch(err => console.log('SW registration failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>

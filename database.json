@@ -1,0 +1,288 @@
+{
+  "orders": [
+    {
+      "id": "os_101",
+      "numero": "A1B2C",
+      "cliente_nome": "João da Silva",
+      "cliente_celular": "21988887777",
+      "marca": "Apple",
+      "modelo": "iPhone 13 Pro",
+      "cor": "Azul Sierra",
+      "senha": "Senha numérica: 142536",
+      "defeito_relatado": "Queda acidental. Tela com listras e falha no touch. Alto-falante auricular chiando.",
+      "servico": "Substituição de Tela OLED + Desoxidação do alto-falante auricular",
+      "status": "Em Serviço",
+      "funcionario_id": "func_1",
+      "valor": 750.00,
+      "valor_pago": 200.00,
+      "custo_peca": 380.00,
+      "data_entrada": "2026-10-25",
+      "previsao_entrega": "2026-10-26",
+      "checklist": {
+        "display": "Atenção",
+        "camera": "OK",
+        "audio": "Atenção",
+        "carga": "OK",
+        "conexoes": "OK",
+        "botoes": "OK",
+        "biometria": "Não test.",
+        "bateria": "OK",
+        "carcaca": "Atenção",
+        "proximidade": "OK"
+      },
+      "checklist_obs": "Micro trincado no canto inferior direito da tampa traseira. Touch falhando na metade superior.",
+      "fotos": []
+    }
+  ],
+  "products": [
+    {
+      "id": "prod_1",
+      "nome": "Tela iPhone 13 Pro OLED Original",
+      "categoria": "Telas",
+      "sku": "TEL-IPH13P-OLED",
+      "custo": 380.00,
+      "preco": 750.00,
+      "quantidade": 4,
+      "minimo": 2,
+      "icone": "smartphone"
+    },
+    {
+      "id": "prod_2",
+      "nome": "Bateria Samsung Galaxy S22 3700mAh",
+      "categoria": "Baterias",
+      "sku": "BAT-SAMS22-ORIG",
+      "custo": 85.00,
+      "preco": 190.00,
+      "quantidade": 8,
+      "minimo": 3,
+      "icone": "battery-charging"
+    },
+    {
+      "id": "prod_3",
+      "nome": "Película 3D Cerâmica Fosca Universal",
+      "categoria": "Acessórios",
+      "sku": "PEL-3D-CERAM",
+      "custo": 4.50,
+      "preco": 30.00,
+      "quantidade": 45,
+      "minimo": 10,
+      "icone": "shield"
+    },
+    {
+      "id": "prod_4",
+      "nome": "Cabo Tipo-C x Lightning 20W Reforçado",
+      "categoria": "Acessórios",
+      "sku": "CAB-20W-LGT",
+      "custo": 12.00,
+      "preco": 45.00,
+      "quantidade": 18,
+      "minimo": 5,
+      "icone": "cable"
+    },
+    {
+      "id": "prod_5",
+      "nome": "Conector de Carga USB-C Moto G60 Sub-placa",
+      "categoria": "Conectores",
+      "sku": "CON-MOTOG60-SUB",
+      "custo": 18.00,
+      "preco": 90.00,
+      "quantidade": 6,
+      "minimo": 2,
+      "icone": "cpu"
+    }
+  ],
+  "fornecedores": [
+    {
+      "id": "forn_1",
+      "nome": "MegaTelas Distribuidora",
+      "marca": "Apple, Samsung, Motorola, Xiaomi",
+      "especialidade": "Telas OLED Originais & Baterias Seladas",
+      "telefone": "(11) 3222-1010",
+      "whatsapp": "11988881234",
+      "endereco": "Rua Santa Ifigênia, 280 - São Paulo, SP",
+      "site": "https://megatelasdistribuidora.com.br",
+      "observacoes": "Garantia de 90 dias com selo intacto. Despacho no mesmo dia via Sedex até 16h."
+    },
+    {
+      "id": "forn_2",
+      "nome": "ChipMaster Componentes & Ferramentas",
+      "marca": "Apple, Xiaomi, Motorola, Samsung",
+      "especialidade": "CIs de Carga Tristar/Hydra, PMIC, Estações e Microscópios",
+      "telefone": "(19) 3456-7890",
+      "whatsapp": "19997778899",
+      "endereco": "Campinas, SP",
+      "site": "https://chipmasterpecas.com.br",
+      "observacoes": "Pedido mínimo R$ 200. Componentes SMD originais em fita carretel."
+    },
+    {
+      "id": "forn_3",
+      "nome": "FlashCell Atacado de Vidros e Peças",
+      "marca": "Samsung, Motorola, Xiaomi, Realme",
+      "especialidade": "Vidros com Cola OCA, Carcaças e Conectores Tipo-C",
+      "telefone": "(21) 2555-4321",
+      "whatsapp": "21996665544",
+      "endereco": "Centro, Rio de Janeiro - RJ",
+      "site": "https://flashcellatacado.com.br",
+      "observacoes": "Frete grátis para compras acima de R$ 600. Troca expressa no balcão."
+    }
+  ],
+  "ebooks": [
+    {
+      "id": "ebk_1",
+      "titulo": "Guia de Diagnóstico & Esquema Elétrico iPhone 13 / 13 Pro",
+      "marca": "Apple",
+      "modelo": "iPhone 13 / 13 Pro / 13 Pro Max",
+      "categoria": "Esquema Elétrico",
+      "url": "https://archive.org/details/schematics-sample",
+      "descricao": "Mapeamento detalhado de linhas primárias VDD_MAIN, circuito do Tristar/Hydra, barramentos I2C e teste de tensões com multímetro."
+    },
+    {
+      "id": "ebk_2",
+      "titulo": "Manual de Serviço & Boardview Samsung Linha Galaxy S22",
+      "marca": "Samsung",
+      "modelo": "Galaxy S22 / S22 Ultra (Exynos & Snapdragon)",
+      "categoria": "Manual de Serviço",
+      "url": "https://archive.org/details/manual-servico-samsung",
+      "descricao": "Diagrama de blocos, guia de testes de desoxidação, diagrama do sensor Hall e circuitos de RF 5G."
+    },
+    {
+      "id": "ebk_3",
+      "titulo": "Apostila Completa de Microsoldagem e Injeção de Tensão na Prática",
+      "marca": "Multimarcas",
+      "modelo": "Universal (Smartphones Android & iOS)",
+      "categoria": "Microsoldagem",
+      "url": "https://archive.org/details/apostila-microsoldagem",
+      "descricao": "Técnicas de remoção de resina epóxi, reballing com stencil 3D, temperatura ideal de soprador térmico e reconstrução de pads rompidos."
+    }
+  ],
+  "videoaulas": [
+    {
+      "id": "vid_1",
+      "titulo": "Como Localizar Curto em Linha Primária com Câmera Térmica e Breu",
+      "marca": "Apple",
+      "modelo": "iPhone 11 / 12 / 13",
+      "categoria": "Microsoldagem",
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "descricao": "Passo a passo com fonte de bancada ajustada em 4.0V e 2A. Demonstração de dissipação térmica com método do breu e detecção instantânea do capacitor em curto."
+    },
+    {
+      "id": "vid_2",
+      "titulo": "Troca de Vidro na Máquina OCA sem Risco de Mancha no Polarizer",
+      "marca": "Samsung",
+      "modelo": "Linha Galaxy A e Linha S",
+      "categoria": "Troca de Vidro / OCA",
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "descricao": "Aquecimento na separadora a 85°C, uso de fio de molibdênio 0.03mm, limpeza com removedor de cola 530 e laminação precisa na câmara de vácuo."
+    },
+    {
+      "id": "vid_3",
+      "titulo": "Diagnóstico Avançado de Falha de Carga no Motorola (PMIC / IF-PMIC)",
+      "marca": "Motorola",
+      "modelo": "Moto G60 / Moto G84",
+      "categoria": "Diagnóstico de Carga",
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "descricao": "Teste no USB tester (Dongle USB). Como identificar se a falha é no conector Sub-placa, no flat FPC ou no circuito de chaveamento OVP da placa mãe."
+    }
+  ],
+  "funcionarios": [
+    {
+      "id": "func_ozeas",
+      "nome": "Ozéias (Gerente)",
+      "funcao": "Gerente",
+      "email": "ozeas@chcell.com",
+      "telefone": "21999998888",
+      "ativo": true,
+      "observacoes": "Gerente da Loja - Gestão Geral, Equipe e Balcão"
+    },
+    {
+      "id": "func_1",
+      "nome": "Carlos Oliveira (Técnico)",
+      "funcao": "Técnico",
+      "email": "carlos.tecnico@chcell.com",
+      "telefone": "21988887777",
+      "ativo": true,
+      "observacoes": "Especialista em reparos de placas iPhone, telas e micro solda"
+    },
+    {
+      "id": "func_2",
+      "nome": "Mariana Santos (Atendente)",
+      "funcao": "Atendente",
+      "email": "mariana.atendimento@chcell.com",
+      "telefone": "21977776666",
+      "ativo": true,
+      "observacoes": "Atendimento de balcão, WhatsApp e abertura de OS"
+    }
+  ],
+  "acessos": [
+    {
+      "id": "acc_ozeas",
+      "funcionario_id": "func_ozeas",
+      "perfil": "gerente",
+      "ativo": true,
+      "auth_user_id": "auth_func_ozeas",
+      "troca_senha_obrigatoria": true,
+      "senha": "12345678Ch@",
+      "permissoes": {
+        "clientes.visualizar": true,
+        "clientes.criar": true,
+        "clientes.editar": true,
+        "os.visualizar": true,
+        "os.criar": true,
+        "os.editar": true,
+        "estoque.visualizar": true,
+        "estoque.movimentar": true,
+        "estoque.criar": true,
+        "estoque.editar": true,
+        "vendas.visualizar": true,
+        "vendas.criar": true,
+        "caixa.visualizar": true,
+        "caixa.lancar": true
+      }
+    },
+    {
+      "id": "acc_1",
+      "funcionario_id": "func_1",
+      "perfil": "funcionario",
+      "ativo": true,
+      "auth_user_id": "auth_func_1",
+      "troca_senha_obrigatoria": false,
+      "senha": "12345678Ch@",
+      "permissoes": {
+        "clientes.visualizar": true,
+        "os.visualizar": true,
+        "os.editar": true,
+        "estoque.visualizar": true
+      }
+    },
+    {
+      "id": "acc_2",
+      "funcionario_id": "func_2",
+      "perfil": "funcionario",
+      "ativo": true,
+      "auth_user_id": "auth_func_2",
+      "troca_senha_obrigatoria": true,
+      "senha": "12345678Ch@",
+      "permissoes": {
+        "clientes.visualizar": true,
+        "clientes.criar": true,
+        "os.visualizar": true,
+        "os.criar": true,
+        "vendas.criar": true
+      }
+    }
+  ],
+  "sales": [],
+  "expenses": [
+    { "id": "exp_1", "data": "2026-10-25", "desc": "Aluguel do Ponto Comercial", "valor": 1200.00, "tipo": "Fixa" },
+    { "id": "exp_2", "data": "2026-10-25", "desc": "Energia Elétrica / Internet", "valor": 280.00, "tipo": "Variável" }
+  ],
+  "estoqueMovimentacoes": [],
+  "config": {
+    "storeName": "CH Cell Assistência Técnica",
+    "whatsApp": "21987654321",
+    "address": "Rua Principal, 120 - Centro",
+    "warranty": "Garantia legal de 90 dias referente ao serviço executado e à peça substituída. Não cobre danos por quedas, trincados ou umidade.",
+    "printModel": "thermal-80"
+  },
+  "last_updated": 1792929450000
+}
