@@ -342,6 +342,18 @@ class AppState {
     this.ebooks = this.loadStorage('chcell_ebooks', DEFAULT_EBOOKS);
     this.videoaulas = this.loadStorage('chcell_videoaulas', DEFAULT_VIDEOAULAS);
     this.sales = this.loadStorage('chcell_sales', []);
+    this.clientes = this.loadStorage('chcell_clientes', [
+      {
+        id: 'cli_1',
+        nome: 'João da Silva',
+        celular: '21988887777',
+        cpf: '123.456.789-00',
+        email: 'joao.silva@email.com',
+        endereco: 'Rua das Flores, 120 - Centro',
+        observacoes: 'Cliente frequente, traz aparelhos da família',
+        created_at: new Date().toISOString()
+      }
+    ]);
     this.expenses = this.loadStorage('chcell_expenses', [
       { id: 'exp_1', data: new Date().toISOString().slice(0, 10), desc: 'Aluguel do Ponto Comercial', valor: 1200.00, tipo: 'Fixa' },
       { id: 'exp_2', data: new Date().toISOString().slice(0, 10), desc: 'Energia Elétrica / Internet', valor: 280.00, tipo: 'Variável' }
@@ -354,6 +366,8 @@ class AppState {
       warranty: 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída. Não cobre danos por quedas, trincados ou umidade.',
       printModel: 'thermal-80'
     });
+
+    this.ensureClientesFromOrders();
 
     this.activeChecklist = {};
     this.activePhotos = [];
@@ -379,6 +393,32 @@ class AppState {
     } catch (e) {
       console.warn('Erro ao salvar no localStorage:', e);
     }
+  }
+
+  ensureClientesFromOrders() {
+    if (!Array.isArray(this.clientes)) this.clientes = [];
+    (this.orders || []).forEach(o => {
+      const nome = (o.cliente_nome || '').trim();
+      const celular = (o.cliente_celular || '').trim();
+      if (!nome) return;
+      const cleanPhone = celular.replace(/\D/g, '');
+      const exists = this.clientes.some(c => 
+        (cleanPhone && (c.celular || '').replace(/\D/g, '') === cleanPhone) ||
+        ((c.nome || '').toLowerCase().trim() === nome.toLowerCase())
+      );
+      if (!exists) {
+        this.clientes.push({
+          id: 'cli_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+          nome,
+          celular,
+          cpf: '',
+          email: '',
+          endereco: '',
+          observacoes: 'Cadastrado automaticamente da OS #' + (o.numero || ''),
+          created_at: o.data_entrada || new Date().toISOString()
+        });
+      }
+    });
   }
 
   async syncWithServer(isInitial = false) {
@@ -410,6 +450,13 @@ class AppState {
             }
           });
         }
+        if (Array.isArray(this.clientes) && Array.isArray(data.clientes)) {
+          this.clientes.forEach(lc => {
+            if (!data.clientes.some(sc => sc.id === lc.id || (sc.celular && lc.celular && sc.celular.replace(/\D/g, '') === lc.celular.replace(/\D/g, '')))) {
+              data.clientes.push(lc);
+            }
+          });
+        }
 
         this.orders = data.orders || this.orders;
         this.products = data.products || this.products;
@@ -417,6 +464,8 @@ class AppState {
         this.ebooks = data.ebooks || this.ebooks;
         this.videoaulas = data.videoaulas || this.videoaulas;
         this.sales = data.sales || this.sales;
+        this.clientes = data.clientes || this.clientes;
+        this.ensureClientesFromOrders();
         this.expenses = data.expenses || this.expenses;
         this.config = data.config || this.config;
         this.funcionarios = data.funcionarios || this.funcionarios;
@@ -431,6 +480,7 @@ class AppState {
         this.saveStorage('chcell_ebooks', this.ebooks);
         this.saveStorage('chcell_videoaulas', this.videoaulas);
         this.saveStorage('chcell_sales', this.sales);
+        this.saveStorage('chcell_clientes', this.clientes);
         this.saveStorage('chcell_expenses', this.expenses);
         this.saveStorage('chcell_config', this.config);
         this.saveStorage('chcell_funcionarios', this.funcionarios);
@@ -463,6 +513,7 @@ class AppState {
       ebooks: this.ebooks,
       videoaulas: this.videoaulas,
       sales: this.sales,
+      clientes: this.clientes,
       expenses: this.expenses,
       config: this.config,
       funcionarios: this.funcionarios,
@@ -491,6 +542,7 @@ class AppState {
     this.saveStorage('chcell_ebooks', this.ebooks);
     this.saveStorage('chcell_videoaulas', this.videoaulas);
     this.saveStorage('chcell_sales', this.sales);
+    this.saveStorage('chcell_clientes', this.clientes);
     this.saveStorage('chcell_expenses', this.expenses);
     this.saveStorage('chcell_config', this.config);
     this.saveStorage('chcell_funcionarios', this.funcionarios);
@@ -2083,65 +2135,269 @@ Qualquer dúvida estamos à disposição!`;
   },
 
   // =========================================================================
-  // 10. HISTÓRICO DE CLIENTES (FOTO 1 CARD 3)
+  // 10. GESTÃO E HISTÓRICO DE CLIENTES
   // =========================================================================
-  renderClientesList() {
-    const container = document.getElementById('clientesContainer');
-    if (!container) return;
+  openNewClienteModal() {
+    const form = document.getElementById('formCliente');
+    if (form) form.reset();
+    document.getElementById('cliEditId').value = '';
+    document.getElementById('cliModalTitle').textContent = 'Novo Cliente';
+    document.getElementById('modalCliente').classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
+    setTimeout(() => document.getElementById('cliNome')?.focus(), 50);
+  },
 
-    const q = (document.getElementById('clientesSearchInput')?.value || '').toLowerCase();
+  closeClienteModal() {
+    document.getElementById('modalCliente').classList.add('hidden');
+  },
 
-    // Agrupa clientes únicos por telefone ou nome
-    const clientsMap = new Map();
-    state.orders.forEach(o => {
-      const key = (o.cliente_celular || o.cliente_nome || '').trim();
-      if (!clientsMap.has(key)) {
-        clientsMap.set(key, {
-          nome: o.cliente_nome,
-          celular: o.cliente_celular,
-          orders: []
+  editCliente(id) {
+    const c = (state.clientes || []).find(x => x.id === id);
+    if (!c) return;
+
+    document.getElementById('cliEditId').value = c.id;
+    document.getElementById('cliModalTitle').textContent = `Editar: ${c.nome}`;
+    document.getElementById('cliNome').value = c.nome || '';
+    document.getElementById('cliCelular').value = c.celular || '';
+    document.getElementById('cliCpf').value = c.cpf || '';
+    document.getElementById('cliEmail').value = c.email || '';
+    document.getElementById('cliEndereco').value = c.endereco || '';
+    document.getElementById('cliObservacoes').value = c.observacoes || '';
+
+    document.getElementById('modalCliente').classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  handleSaveCliente(event) {
+    if (event) {
+      try { event.preventDefault(); } catch {}
+      try { event.stopPropagation(); } catch {}
+    }
+
+    const id = (document.getElementById('cliEditId')?.value || '').trim();
+    const nome = (document.getElementById('cliNome')?.value || '').trim();
+    const celular = (document.getElementById('cliCelular')?.value || '').trim();
+    const cpf = (document.getElementById('cliCpf')?.value || '').trim();
+    const email = (document.getElementById('cliEmail')?.value || '').trim().toLowerCase();
+    const endereco = (document.getElementById('cliEndereco')?.value || '').trim();
+    const observacoes = (document.getElementById('cliObservacoes')?.value || '').trim();
+
+    if (!nome) return alert('Informe o nome do cliente.');
+    if (!celular) return alert('Informe o celular ou WhatsApp do cliente.');
+
+    if (id) {
+      // Edição
+      const idx = state.clientes.findIndex(c => c.id === id);
+      if (idx !== -1) {
+        const oldNome = state.clientes[idx].nome;
+        const oldCelular = state.clientes[idx].celular;
+
+        state.clientes[idx] = {
+          ...state.clientes[idx],
+          nome,
+          celular,
+          cpf,
+          email,
+          endereco,
+          observacoes,
+          updated_at: new Date().toISOString()
+        };
+
+        // Sincroniza o histórico de OS desse cliente caso nome ou celular tenham mudado
+        state.orders.forEach(o => {
+          if ((oldCelular && o.cliente_celular === oldCelular) || (oldNome && o.cliente_nome === oldNome)) {
+            o.cliente_nome = nome;
+            o.cliente_celular = celular;
+          }
         });
       }
-      clientsMap.get(key).orders.push(o);
+    } else {
+      // Novo Cliente
+      const newCli = {
+        id: 'cli_' + Date.now(),
+        nome,
+        celular,
+        cpf,
+        email,
+        endereco,
+        observacoes,
+        created_at: new Date().toISOString()
+      };
+      if (!Array.isArray(state.clientes)) state.clientes = [];
+      state.clientes.unshift(newCli);
+    }
+
+    state.persistAll();
+    this.closeClienteModal();
+    this.renderClientesList();
+    this.renderOSList();
+    alert(`Cliente "${nome}" salvo com sucesso!`);
+  },
+
+  deleteCliente(id) {
+    const c = (state.clientes || []).find(x => x.id === id);
+    if (!c) return;
+
+    const cleanPhone = (c.celular || '').replace(/\D/g, '');
+    const vinculadas = (state.orders || []).filter(o => 
+      (cleanPhone && (o.cliente_celular || '').replace(/\D/g, '') === cleanPhone) ||
+      (o.cliente_nome && o.cliente_nome.toLowerCase().trim() === c.nome.toLowerCase().trim())
+    ).length;
+
+    const msg = vinculadas > 0
+      ? `O cliente "${c.nome}" possui ${vinculadas} OS no histórico.\n\nTem certeza que deseja excluir o cadastro dele? O histórico das OS será mantido.`
+      : `Deseja realmente excluir o cadastro do cliente "${c.nome}"?`;
+
+    if (!confirm(msg)) return;
+
+    state.clientes = state.clientes.filter(x => x.id !== id);
+    state.persistAll();
+    this.renderClientesList();
+    alert('Cliente excluído com sucesso.');
+  },
+
+  openNewOSForCliente(clienteId) {
+    const c = (state.clientes || []).find(x => x.id === clienteId);
+    if (!c) return;
+    this.openNewOSModal({ nome: c.nome, celular: c.celular });
+  },
+
+  renderClientesList() {
+    const container = document.getElementById('clientesContainer');
+    const countBadge = document.getElementById('clientesCountBadge');
+    if (!container) return;
+
+    state.ensureClientesFromOrders();
+    const q = (document.getElementById('clientesSearchInput')?.value || '').toLowerCase().trim();
+
+    const list = (state.clientes || []).filter(c => {
+      if (!q) return true;
+      return (c.nome || '').toLowerCase().includes(q) ||
+             (c.celular || '').includes(q) ||
+             (c.cpf || '').includes(q) ||
+             (c.email || '').toLowerCase().includes(q) ||
+             (c.endereco || '').toLowerCase().includes(q);
     });
 
-    const list = Array.from(clientsMap.values()).filter(c => {
-      return !q || c.nome.toLowerCase().includes(q) || (c.celular || '').includes(q);
-    });
+    if (countBadge) {
+      countBadge.textContent = `${(state.clientes || []).length} cadastrado(s)`;
+    }
 
     if (!list.length) {
-      container.innerHTML = `<p class="col-span-full text-xs text-slate-400 py-4">Nenhum cliente encontrado.</p>`;
+      container.innerHTML = `
+        <div class="col-span-full text-center py-12 bg-white rounded-2xl border border-slate-200/90 shadow-sm space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
+            <i data-lucide="users" class="w-6 h-6 stroke-[1.5]"></i>
+          </div>
+          <p class="text-sm font-bold text-slate-800">${q ? 'Nenhum cliente encontrado com esse termo.' : 'Nenhum cliente cadastrado no momento.'}</p>
+          <p class="text-xs text-slate-400">Clique no botão abaixo para adicionar seu primeiro cliente ou buscar novos termos.</p>
+          <button onclick="app.openNewClienteModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl transition inline-flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="user-plus" class="w-4 h-4"></i> Cadastrar Novo Cliente
+          </button>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
       return;
     }
 
     container.innerHTML = list.map(c => {
-      const totalGasto = c.orders.reduce((acc, o) => acc + Number(o.valor || 0), 0);
-      const aparelhos = Array.from(new Set(c.orders.map(o => `${o.marca} ${o.modelo}`))).join(', ');
+      const cleanPhone = (c.celular || '').replace(/\D/g, '');
+      const clientOrders = (state.orders || []).filter(o => 
+        (cleanPhone && (o.cliente_celular || '').replace(/\D/g, '') === cleanPhone) ||
+        ((o.cliente_nome || '').toLowerCase().trim() === (c.nome || '').toLowerCase().trim())
+      );
+      const totalGasto = clientOrders.reduce((acc, o) => acc + Number(o.valor || 0), 0);
+      const aparelhos = Array.from(new Set(clientOrders.map(o => `${o.marca || ''} ${o.modelo || ''}`.trim()).filter(Boolean))).join(', ');
+
+      const initials = (c.nome || 'C').split(' ').filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('');
 
       return `
-        <div class="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3">
-          <div class="flex items-start justify-between">
-            <div>
-              <h4 class="font-extrabold text-slate-900 text-sm sm:text-base">${c.nome}</h4>
-              <p class="text-xs text-slate-500 font-medium">${c.celular || 'Sem celular cadastrado'}</p>
+        <div class="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm hover:shadow-md transition space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <!-- Header do Card -->
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md shadow-brand-500/20">
+                  ${initials}
+                </div>
+                <div>
+                  <h4 class="font-extrabold text-slate-900 text-base leading-tight">${c.nome}</h4>
+                  <div class="flex items-center gap-2 mt-0.5">
+                    <span class="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                      <i data-lucide="phone" class="w-3 h-3 text-slate-400"></i>
+                      ${c.celular || 'Sem celular'}
+                    </span>
+                    ${c.cpf ? `<span class="text-[10px] text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">CPF: ${c.cpf}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+
+              <span class="text-xs font-black px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
+                ${clientOrders.length} OS
+              </span>
             </div>
-            <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700">
-              ${c.orders.length} conserto(s)
-            </span>
+
+            <!-- Dados Extras de Contato / Endereço -->
+            ${(c.email || c.endereco || c.observacoes) ? `
+              <div class="text-[11px] text-slate-500 space-y-1 bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                ${c.email ? `<p class="flex items-center gap-1.5 truncate"><i data-lucide="mail" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i> ${c.email}</p>` : ''}
+                ${c.endereco ? `<p class="flex items-center gap-1.5 truncate"><i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i> ${c.endereco}</p>` : ''}
+                ${c.observacoes ? `<p class="italic text-slate-600 pt-0.5 border-t border-slate-200/60 flex items-start gap-1"><i data-lucide="info" class="w-3 h-3 text-amber-500 shrink-0 mt-0.5"></i> ${c.observacoes}</p>` : ''}
+              </div>
+            ` : ''}
+
+            <!-- Resumo Financeiro & Aparelhos -->
+            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-xs space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-500 font-medium">Total investido na loja:</span>
+                <span class="font-black text-emerald-600">${state.formatMoney(totalGasto)}</span>
+              </div>
+              <div class="flex items-start justify-between gap-2">
+                <span class="text-slate-500 font-medium shrink-0">Aparelhos atendidos:</span>
+                <span class="font-bold text-slate-800 text-right truncate">${aparelhos || 'Nenhum registrado'}</span>
+              </div>
+            </div>
+
+            <!-- Histórico de Ordens Recentes -->
+            ${clientOrders.length > 0 ? `
+              <div class="space-y-1.5 pt-1">
+                <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Últimas Ordens de Serviço:</p>
+                <div class="flex flex-wrap gap-1.5">
+                  ${clientOrders.slice(0, 3).map(o => {
+                    return `
+                      <span onclick="app.openEditOSModal('${o.id}')" title="Clique para abrir a OS #${o.numero}" class="cursor-pointer text-[11px] font-bold px-2 py-0.5 rounded-lg border border-slate-200/80 hover:border-brand-500 transition flex items-center gap-1 bg-white">
+                        <strong class="font-mono text-brand-600">#${o.numero}</strong>
+                        <span class="text-slate-600 truncate max-w-[100px]">${o.marca} ${o.modelo}</span>
+                        <span class="w-1.5 h-1.5 rounded-full ${o.status === 'Finalizado' ? 'bg-emerald-500' : 'bg-brand-500'}"></span>
+                      </span>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
           </div>
 
-          <div class="bg-slate-50 p-2.5 rounded-xl text-xs space-y-1">
-            <p class="text-slate-600"><b>Aparelhos atendidos:</b> ${aparelhos || 'Nenhum'}</p>
-            <p class="text-slate-600"><b>Total investido em serviços:</b> <span class="font-bold text-emerald-600">${state.formatMoney(totalGasto)}</span></p>
-          </div>
+          <!-- Ações do Card -->
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 text-xs">
+            <div class="flex items-center gap-1.5">
+              <button onclick="app.openNewOSForCliente('${c.id}')" class="px-2.5 py-1.5 bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold rounded-xl transition flex items-center gap-1 cursor-pointer" title="Nova OS para este cliente">
+                <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">Nova OS</span>
+              </button>
+              <button onclick="app.sendClientGeneralWA('${c.celular}', '${c.nome}')" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 active:scale-95 text-emerald-700 font-bold rounded-xl transition flex items-center gap-1 border border-emerald-200 cursor-pointer" title="Conversar no WhatsApp">
+                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+                <span class="hidden sm:inline">WhatsApp</span>
+              </button>
+            </div>
 
-          <div class="flex items-center justify-between pt-1 text-xs">
-            <button onclick="app.openNewOSModal({ nome: '${c.nome}', celular: '${c.celular}' })" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl transition flex items-center gap-1">
-              <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nova OS p/ este cliente
-            </button>
-            <button onclick="app.sendClientGeneralWA('${c.celular}', '${c.nome}')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl transition flex items-center gap-1">
-              <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> WhatsApp
-            </button>
+            <div class="flex items-center gap-1">
+              <button onclick="app.editCliente('${c.id}')" class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition cursor-pointer" title="Editar dados do cliente">
+                <i data-lucide="edit-3" class="w-4 h-4"></i>
+              </button>
+              <button onclick="app.deleteCliente('${c.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer" title="Excluir cliente">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
           </div>
         </div>
       `;
