@@ -2932,14 +2932,31 @@ const equipeManager = {
           db.from('ch_permissoes_catalogo').select('*').order('grupo').order('codigo')
         ]);
 
-        if (fRes.data && fRes.data.length) state.funcionarios = fRes.data;
+        if (fRes.data && fRes.data.length) {
+          // Merge seguro: combina registros do Supabase sem apagar edições locais ou novos funcionários
+          const merged = [...fRes.data];
+          state.funcionarios.forEach(localF => {
+            const exists = merged.find(sf => sf.id === localF.id || (sf.email && localF.email && sf.email.toLowerCase() === localF.email.toLowerCase()));
+            if (!exists) {
+              merged.push(localF);
+            }
+          });
+          state.funcionarios = merged;
+        }
         if (cRes.data && cRes.data.length) state.catalogoPermissoes = cRes.data;
 
         // Carrega acessos da loja
         const { data: loja } = await db.from('ch_lojas').select('id').eq('proprietario_id', state.currentUser.id).maybeSingle();
         if (loja) {
           const { data: acessos } = await db.from('ch_equipe_acessos').select('*').eq('loja_id', loja.id);
-          if (acessos && acessos.length) state.acessos = acessos;
+          if (acessos && acessos.length) {
+            const mergedAcc = [...acessos];
+            state.acessos.forEach(localA => {
+              const exists = mergedAcc.find(sa => sa.id === localA.id || sa.funcionario_id === localA.funcionario_id);
+              if (!exists) mergedAcc.push(localA);
+            });
+            state.acessos = mergedAcc;
+          }
         }
       } catch (err) {
         console.warn('Carregamento de equipe via Supabase:', err);
@@ -3396,21 +3413,28 @@ const equipeManager = {
   },
 
   async handleSaveEmployee(event) {
-    event.preventDefault();
-    const id = document.getElementById('funEditId').value;
-    const nome = document.getElementById('funNome').value.trim();
-    const email = document.getElementById('funEmail').value.trim().toLowerCase() || null;
-    const telefone = document.getElementById('funTelefone').value.trim();
-    const funcao = document.getElementById('funFuncao').value;
-    const ativo = document.getElementById('funSituacao').value === 'true';
-    const observacoes = document.getElementById('funObs').value.trim();
+    if (event) {
+      try { event.preventDefault(); } catch {}
+      try { event.stopPropagation(); } catch {}
+    }
+
+    const id = (document.getElementById('funEditId')?.value || '').trim();
+    const nome = (document.getElementById('funNome')?.value || '').trim();
+    const email = (document.getElementById('funEmail')?.value || '').trim().toLowerCase() || null;
+    const telefone = (document.getElementById('funTelefone')?.value || '').trim();
+    const funcao = document.getElementById('funFuncao')?.value || 'Técnico';
+    const ativo = document.getElementById('funSituacao')?.value === 'true';
+    const observacoes = (document.getElementById('funObs')?.value || '').trim();
 
     if (!nome) return alert('Informe o nome do funcionário.');
 
-    const payload = { nome, email, telefone, funcao, ativo, observacoes };
+    const payload = { nome, email, telefone, funcao, ativo, observacoes, updated_at: new Date().toISOString() };
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+    let supabaseStatus = { attempted: false, success: false, rlsBlocked: false, error: null };
 
     if (id) {
-      // Edição
+      // 1. Atualização imediata no estado local e de sincronização do app
       const idx = state.funcionarios.findIndex(f => f.id === id);
       if (idx !== -1) {
         state.funcionarios[idx] = { ...state.funcionarios[idx], ...payload };
@@ -3418,16 +3442,64 @@ const equipeManager = {
       const acc = state.acessos.find(a => a.funcionario_id === id);
       if (acc) {
         acc.perfil = (funcao || '').toLowerCase().includes('gerente') ? 'gerente' : 'funcionario';
+        acc.ativo = ativo;
       }
+
+      // 2. Executa e inspeciona o UPDATE no Supabase
       if (db) {
+        supabaseStatus.attempted = true;
         try {
-          await db.from('funcionarios').update(payload).eq('id', id);
-        } catch (e) {
-          console.warn('Update no Supabase:', e);
+          let updateQuery;
+          if (isUuid) {
+            updateQuery = db.from('funcionarios').update(payload).eq('id', id).select();
+          } else if (email) {
+            updateQuery = db.from('funcionarios').update(payload).eq('email', email).select();
+          } else {
+            updateQuery = db.from('funcionarios').update(payload).eq('nome', nome).select();
+          }
+
+          const { data, error, count } = await updateQuery;
+
+          if (error) {
+            console.error('Supabase UPDATE Error:', error);
+            supabaseStatus.error = error;
+            const code = error.code;
+            const msg = (error.message || '').toLowerCase();
+            if (code === '42501' || msg.includes('row-level security') || msg.includes('policy') || msg.includes('permission denied')) {
+              supabaseStatus.rlsBlocked = true;
+            }
+          } else if (!data || data.length === 0) {
+            // Se o registro não existia no Supabase com esse id/email, faz o insert para garantir persistência
+            const insertPayload = { ...payload };
+            if (isUuid) insertPayload.id = id;
+            if (state.currentUser && state.currentUser.id && /^[0-9a-f-]{36}$/i.test(state.currentUser.id)) {
+              insertPayload.user_id = state.currentUser.id;
+            }
+            const insRes = await db.from('funcionarios').insert(insertPayload).select();
+            if (insRes.error) {
+              supabaseStatus.error = insRes.error;
+              const msg = (insRes.error.message || '').toLowerCase();
+              if (insRes.error.code === '42501' || msg.includes('row-level security') || msg.includes('policy')) {
+                supabaseStatus.rlsBlocked = true;
+              }
+            } else {
+              supabaseStatus.success = true;
+              if (insRes.data && insRes.data[0] && !isUuid) {
+                const newUuid = insRes.data[0].id;
+                if (idx !== -1) state.funcionarios[idx].id = newUuid;
+                if (acc) acc.funcionario_id = newUuid;
+              }
+            }
+          } else {
+            supabaseStatus.success = true;
+          }
+        } catch (err) {
+          console.error('Exceção Supabase UPDATE:', err);
+          supabaseStatus.error = err;
         }
       }
     } else {
-      // Novo funcionário
+      // 1. Novo funcionário no estado local
       const newId = 'func_' + Date.now();
       const novoF = { id: newId, ...payload };
       state.funcionarios.push(novoF);
@@ -3436,30 +3508,66 @@ const equipeManager = {
         id: 'acc_' + Date.now(),
         funcionario_id: newId,
         perfil: (funcao || '').toLowerCase().includes('gerente') ? 'gerente' : 'funcionario',
-        ativo: false,
+        ativo: ativo,
         troca_senha_obrigatoria: true,
         permissoes: {}
       };
       state.acessos.push(novoAcc);
 
+      // 2. INSERT no Supabase
       if (db) {
+        supabaseStatus.attempted = true;
         try {
-          const { data: inserted } = await db.from('funcionarios').insert({ ...payload, user_id: state.currentUser?.id }).select().single();
-          if (inserted) {
+          const insertPayload = { ...payload };
+          if (state.currentUser && state.currentUser.id && /^[0-9a-f-]{36}$/i.test(state.currentUser.id)) {
+            insertPayload.user_id = state.currentUser.id;
+          }
+          const { data: inserted, error: insErr } = await db.from('funcionarios').insert(insertPayload).select().single();
+          if (insErr) {
+            console.error('Supabase INSERT Error:', insErr);
+            supabaseStatus.error = insErr;
+            const msg = (insErr.message || '').toLowerCase();
+            if (insErr.code === '42501' || msg.includes('row-level security') || msg.includes('policy') || msg.includes('permission denied')) {
+              supabaseStatus.rlsBlocked = true;
+            }
+          } else if (inserted) {
             novoF.id = inserted.id;
             novoAcc.funcionario_id = inserted.id;
+            supabaseStatus.success = true;
           }
         } catch (e) {
-          console.warn('Insert no Supabase:', e);
+          console.error('Exceção Supabase INSERT:', e);
+          supabaseStatus.error = e;
         }
       }
     }
 
+    // 3. Salva no banco de dados central (database.json) e localStorage
     state.persistAll();
     this.closeEmployeeModal();
     this.renderFuncionariosView();
     this.renderSelectedAccess();
-    alert('Funcionário salvo com sucesso!');
+
+    // 4. Mensagem ao usuário com aviso explícito de RLS se bloqueado
+    if (supabaseStatus.rlsBlocked) {
+      alert(
+        `⚠️ ALERTA DE SEGURANÇA NO SUPABASE (RLS BLOQUEOU A GRAVAÇÃO):\n\n` +
+        `As alterações de "${nome}" foram salvas no sistema local e servidor central com sucesso.\n\n` +
+        `PORÉM, O SUPABASE RECUSOU A GRAVAÇÃO:\n` +
+        `• Código: ${supabaseStatus.error?.code || '42501'}\n` +
+        `• Mensagem: "${supabaseStatus.error?.message || 'new row violates row-level security policy'}"\n\n` +
+        `Para liberar a gravação no Supabase, execute o script SQL "supabase/CORRIGIR_RLS_FUNCIONARIOS.sql" no SQL Editor do seu projeto Supabase.`
+      );
+    } else if (supabaseStatus.error) {
+      alert(
+        `⚠️ O colaborador foi salvo no sistema, mas o Supabase retornou o seguinte aviso:\n` +
+        `"${supabaseStatus.error?.message || 'Falha na comunicação com o banco'}"`
+      );
+    } else if (supabaseStatus.success) {
+      alert(`✓ Funcionário "${nome}" atualizado e gravado com sucesso no Supabase e no sistema!`);
+    } else {
+      alert(`✓ Funcionário "${nome}" salvo com sucesso no banco de dados central!`);
+    }
   },
 
   async deleteEmployee(id) {

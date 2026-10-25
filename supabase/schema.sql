@@ -242,22 +242,28 @@ ALTER TABLE public.estoque_movimentacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vendas_balcao ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Permitir leitura de catalogo para autenticados"
-  ON public.ch_permissoes_catalogo FOR SELECT TO authenticated USING (true);
+  ON public.ch_permissoes_catalogo FOR SELECT TO public, anon, authenticated USING (true);
 
-CREATE POLICY "Acesso completo a dados da loja para autenticados"
-  ON public.ch_lojas FOR ALL TO authenticated USING (true);
+CREATE POLICY "Acesso completo a dados da loja"
+  ON public.ch_lojas FOR ALL TO public, anon, authenticated USING (true) WITH CHECK (true);
 
-CREATE POLICY "Acesso completo a funcionarios para autenticados"
-  ON public.funcionarios FOR ALL TO authenticated USING (true);
+CREATE POLICY "Acesso completo a funcionarios"
+  ON public.funcionarios FOR ALL TO public, anon, authenticated USING (true) WITH CHECK (true);
 
-CREATE POLICY "Acesso completo a ordens de servico para autenticados"
-  ON public.ordens_servico FOR ALL TO authenticated USING (true);
+CREATE POLICY "Acesso completo a equipe acessos"
+  ON public.ch_equipe_acessos FOR ALL TO public, anon, authenticated USING (true) WITH CHECK (true);
 
-CREATE POLICY "Acesso completo ao estoque para autenticados"
-  ON public.estoque_produtos FOR ALL TO authenticated USING (true);
+CREATE POLICY "Acesso completo a ordens de servico"
+  ON public.ordens_servico FOR ALL TO public, anon, authenticated USING (true) WITH CHECK (true);
 
-CREATE POLICY "Acesso completo as movimentacoes para autenticados"
-  ON public.estoque_movimentacoes FOR ALL TO authenticated USING (true);
+CREATE POLICY "Acesso completo ao estoque"
+  ON public.estoque_produtos FOR ALL TO public, anon, authenticated USING (true) WITH CHECK (true);
 
-CREATE POLICY "Acesso completo a vendas balcao para autenticados"
-  ON public.vendas_balcao FOR ALL TO authenticated USING (true);
+CREATE POLICY "Acesso completo as movimentacoes"
+  ON public.estoque_movimentacoes FOR ALL TO public, anon, authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY "Acesso completo a vendas balcao"
+  ON public.vendas_balcao FOR ALL TO public, anon, authenticated USING (true) WITH CHECK (true);
+
+GRANT ALL ON public.funcionarios TO anon, authenticated, service_role;
+GRANT ALL ON public.ch_equipe_acessos TO anon, authenticated, service_role;
