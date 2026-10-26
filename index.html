@@ -2713,11 +2713,11 @@
   </div>
 
   <!-- JavaScript Main Application Logic -->
-  <script src="./app.js?v=20261025_04"></script>
+  <script src="./app.js?v=20261025_05"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=20261025_04').then(reg => {
+        navigator.serviceWorker.register('./sw.js?v=20261025_05').then(reg => {
           reg.update();
         }).catch(err => console.log('SW registration failed:', err));
       });

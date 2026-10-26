@@ -422,83 +422,212 @@ class AppState {
   }
 
   async syncWithServer(isInitial = false) {
-    try {
-      const res = await fetch('/api/sync', { cache: 'no-store' });
-      if (!res.ok) return;
-      const data = await res.json();
+    const endpoints = [
+      '/api/sync',
+      'https://brass-shorts-assure-leave.trycloudflare.com/api/sync'
+    ];
 
-      // Se o servidor ainda estiver vazio (primeira inicialização)
-      if (!data || Object.keys(data).length === 0 || !data.last_updated) {
-        await this.pushToServer();
-        return;
+    let data = null;
+    for (const ep of endpoints) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 2600);
+        const res = await fetch(ep, { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const json = await res.json();
+          if (json && typeof json === 'object' && (json.orders || json.products || json.ebooks || json.last_updated)) {
+            data = json;
+            break;
+          }
+        }
+      } catch (err) {
+        // Tenta o próximo endpoint se falhar
       }
+    }
 
-      // Se os dados do servidor forem mais novos ou se for o carregamento inicial:
-      if (isInitial || !this.last_updated || data.last_updated > this.last_updated) {
-        // Preserva funcionários cadastrados localmente (ex: se o usuário criou no celular)
-        if (Array.isArray(this.funcionarios)) {
-          this.funcionarios.forEach(lf => {
-            if (!data.funcionarios.some(sf => sf.id === lf.id || sf.email?.toLowerCase() === lf.email?.toLowerCase())) {
-              data.funcionarios.push(lf);
-            }
-          });
-        }
-        if (Array.isArray(this.acessos)) {
-          this.acessos.forEach(la => {
-            if (!data.acessos.some(sa => sa.id === la.id || sa.funcionario_id === la.funcionario_id)) {
-              data.acessos.push(la);
-            }
-          });
-        }
-        if (Array.isArray(this.clientes) && Array.isArray(data.clientes)) {
-          this.clientes.forEach(lc => {
-            if (!data.clientes.some(sc => sc.id === lc.id || (sc.celular && lc.celular && sc.celular.replace(/\D/g, '') === lc.celular.replace(/\D/g, '')))) {
-              data.clientes.push(lc);
-            }
-          });
-        }
-
-        this.orders = data.orders || this.orders;
-        this.products = data.products || this.products;
-        this.fornecedores = data.fornecedores || this.fornecedores;
-        this.ebooks = data.ebooks || this.ebooks;
-        this.videoaulas = data.videoaulas || this.videoaulas;
-        this.sales = data.sales || this.sales;
-        this.clientes = data.clientes || this.clientes;
-        this.ensureClientesFromOrders();
-        this.expenses = data.expenses || this.expenses;
-        this.config = data.config || this.config;
-        this.funcionarios = data.funcionarios || this.funcionarios;
-        this.acessos = data.acessos || this.acessos;
-        this.estoqueMovimentacoes = data.estoqueMovimentacoes || this.estoqueMovimentacoes || [];
-        this.last_updated = data.last_updated;
-
-        // Salva cópia local offline
-        this.saveStorage('chcell_orders', this.orders);
-        this.saveStorage('chcell_products', this.products);
-        this.saveStorage('chcell_fornecedores', this.fornecedores);
-        this.saveStorage('chcell_ebooks', this.ebooks);
-        this.saveStorage('chcell_videoaulas', this.videoaulas);
-        this.saveStorage('chcell_sales', this.sales);
-        this.saveStorage('chcell_clientes', this.clientes);
-        this.saveStorage('chcell_expenses', this.expenses);
-        this.saveStorage('chcell_config', this.config);
-        this.saveStorage('chcell_funcionarios', this.funcionarios);
-        this.saveStorage('chcell_acessos', this.acessos);
-        this.saveStorage('chcell_estoque_mov', this.estoqueMovimentacoes);
-        this.saveStorage('chcell_last_updated', this.last_updated);
-
-        const syncEl = document.getElementById('cloudSyncStatus');
-        if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Central Conectada (PC & Celular)`;
-
-        if (window.app && window.app.renderCurrentView) {
-          window.app.renderCurrentView();
-        }
-      }
-    } catch (e) {
-      console.warn('Sync server offline, usando armazenamento local:', e);
+    if (!data) {
       const syncEl = document.getElementById('cloudSyncStatus');
-      if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Modo Local Offline`;
+      if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado Local / Offline`;
+      return;
+    }
+
+    // Se o servidor ainda estiver vazio (primeira inicialização)
+    if (!data.last_updated && (!data.orders || !data.orders.length)) {
+      await this.pushToServer();
+      return;
+    }
+
+    // FLAG para saber se temos edições locais que não existem no servidor e precisam ser salvas nele
+    let needsPushBack = false;
+
+    // =========================================================================
+    // MERGE SEGURO PARA TODAS AS ABAS (NUNCA EXCLUI EDIÇÕES FEITAS PELO USUÁRIO)
+    // =========================================================================
+
+    // 1. EBOOKS & ESQUEMAS ELÉTRICOS (Preserva o que o usuário cadastrou no PC)
+    if (!Array.isArray(data.ebooks)) data.ebooks = [];
+    if (Array.isArray(this.ebooks) && this.ebooks.length) {
+      this.ebooks.forEach(le => {
+        if (!data.ebooks.some(se => se.id === le.id || (se.titulo && le.titulo && se.titulo.toLowerCase().trim() === le.titulo.toLowerCase().trim()))) {
+          data.ebooks.push(le);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 2. VIDEOAULAS & TREINAMENTOS (Preserva o que o usuário cadastrou no PC)
+    if (!Array.isArray(data.videoaulas)) data.videoaulas = [];
+    if (Array.isArray(this.videoaulas) && this.videoaulas.length) {
+      this.videoaulas.forEach(lv => {
+        if (!data.videoaulas.some(sv => sv.id === lv.id || (sv.titulo && lv.titulo && sv.titulo.toLowerCase().trim() === lv.titulo.toLowerCase().trim()))) {
+          data.videoaulas.push(lv);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 3. FORNECEDORES
+    if (!Array.isArray(data.fornecedores)) data.fornecedores = [];
+    if (Array.isArray(this.fornecedores) && this.fornecedores.length) {
+      this.fornecedores.forEach(lf => {
+        if (!data.fornecedores.some(sf => sf.id === lf.id || (sf.nome && lf.nome && sf.nome.toLowerCase().trim() === lf.nome.toLowerCase().trim()))) {
+          data.fornecedores.push(lf);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 4. CLIENTES
+    if (!Array.isArray(data.clientes)) data.clientes = [];
+    if (Array.isArray(this.clientes) && this.clientes.length) {
+      this.clientes.forEach(lc => {
+        const cleanL = (lc.celular || '').replace(/\D/g, '');
+        if (!data.clientes.some(sc => sc.id === lc.id || (cleanL && (sc.celular || '').replace(/\D/g, '') === cleanL) || (sc.nome && lc.nome && sc.nome.toLowerCase().trim() === lc.nome.toLowerCase().trim()))) {
+          data.clientes.push(lc);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 5. ORDENS DE SERVIÇO (OS)
+    if (!Array.isArray(data.orders)) data.orders = [];
+    if (Array.isArray(this.orders) && this.orders.length) {
+      this.orders.forEach(lo => {
+        if (!data.orders.some(so => so.id === lo.id || (so.numero && lo.numero && String(so.numero).toLowerCase() === String(lo.numero).toLowerCase()))) {
+          data.orders.push(lo);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 6. PRODUTOS / ESTOQUE
+    if (!Array.isArray(data.products)) data.products = [];
+    if (Array.isArray(this.products) && this.products.length) {
+      this.products.forEach(lp => {
+        if (!data.products.some(sp => sp.id === lp.id || (sp.sku && lp.sku && sp.sku === lp.sku) || (sp.nome && lp.nome && sp.nome.toLowerCase().trim() === lp.nome.toLowerCase().trim()))) {
+          data.products.push(lp);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 7. FUNCIONÁRIOS
+    if (!Array.isArray(data.funcionarios)) data.funcionarios = [];
+    if (Array.isArray(this.funcionarios) && this.funcionarios.length) {
+      this.funcionarios.forEach(lf => {
+        if (!data.funcionarios.some(sf => sf.id === lf.id || (sf.email && lf.email && sf.email.toLowerCase() === lf.email.toLowerCase()) || (sf.nome && lf.nome && sf.nome.toLowerCase().trim() === lf.nome.toLowerCase().trim()))) {
+          data.funcionarios.push(lf);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 8. ACESSOS DA EQUIPE
+    if (!Array.isArray(data.acessos)) data.acessos = [];
+    if (Array.isArray(this.acessos) && this.acessos.length) {
+      this.acessos.forEach(la => {
+        if (!data.acessos.some(sa => sa.id === la.id || sa.funcionario_id === la.funcionario_id)) {
+          data.acessos.push(la);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 9. VENDAS BALCÃO
+    if (!Array.isArray(data.sales)) data.sales = [];
+    if (Array.isArray(this.sales) && this.sales.length) {
+      this.sales.forEach(ls => {
+        if (!data.sales.some(ss => ss.id === ls.id)) {
+          data.sales.push(ls);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 10. DESPESAS
+    if (!Array.isArray(data.expenses)) data.expenses = [];
+    if (Array.isArray(this.expenses) && this.expenses.length) {
+      this.expenses.forEach(le => {
+        if (!data.expenses.some(se => se.id === le.id)) {
+          data.expenses.push(le);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // 11. MOVIMENTAÇÕES DE ESTOQUE
+    if (!Array.isArray(data.estoqueMovimentacoes)) data.estoqueMovimentacoes = [];
+    if (Array.isArray(this.estoqueMovimentacoes) && this.estoqueMovimentacoes.length) {
+      this.estoqueMovimentacoes.forEach(lm => {
+        if (!data.estoqueMovimentacoes.some(sm => sm.id === lm.id)) {
+          data.estoqueMovimentacoes.push(lm);
+          needsPushBack = true;
+        }
+      });
+    }
+
+    // Atualiza estado unificado em memória
+    this.orders = data.orders;
+    this.products = data.products;
+    this.fornecedores = data.fornecedores;
+    this.ebooks = data.ebooks;
+    this.videoaulas = data.videoaulas;
+    this.sales = data.sales;
+    this.clientes = data.clientes;
+    this.ensureClientesFromOrders();
+    this.expenses = data.expenses;
+    this.config = data.config || this.config;
+    this.funcionarios = data.funcionarios;
+    this.acessos = data.acessos;
+    this.estoqueMovimentacoes = data.estoqueMovimentacoes;
+    this.last_updated = Math.max(data.last_updated || 0, this.last_updated || 0, Date.now());
+
+    // Salva cópia local offline completa
+    this.saveStorage('chcell_orders', this.orders);
+    this.saveStorage('chcell_products', this.products);
+    this.saveStorage('chcell_fornecedores', this.fornecedores);
+    this.saveStorage('chcell_ebooks', this.ebooks);
+    this.saveStorage('chcell_videoaulas', this.videoaulas);
+    this.saveStorage('chcell_sales', this.sales);
+    this.saveStorage('chcell_clientes', this.clientes);
+    this.saveStorage('chcell_expenses', this.expenses);
+    this.saveStorage('chcell_config', this.config);
+    this.saveStorage('chcell_funcionarios', this.funcionarios);
+    this.saveStorage('chcell_acessos', this.acessos);
+    this.saveStorage('chcell_estoque_mov', this.estoqueMovimentacoes);
+    this.saveStorage('chcell_last_updated', this.last_updated);
+
+    const syncEl = document.getElementById('cloudSyncStatus');
+    if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Central Conectada (PC, Celular & Vercel)`;
+
+    if (window.app && window.app.renderCurrentView) {
+      window.app.renderCurrentView();
+    }
+
+    // Se o cliente local tinha itens novos que não estavam no servidor central, salva no servidor agora!
+    if (needsPushBack) {
+      await this.pushToServer();
     }
   }
 
@@ -522,17 +651,32 @@ class AppState {
       last_updated: this.last_updated
     };
 
+    const payloadJson = JSON.stringify(payload);
+
+    // 1. Envia para a rota relativa /api/sync (funciona tanto no localhost quanto no Vercel)
     try {
       await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: payloadJson
       });
-      const syncEl = document.getElementById('cloudSyncStatus');
-      if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Sincronizado (PC & Celular)`;
     } catch (e) {
-      console.warn('Erro ao sincronizar com servidor central:', e);
+      console.warn('Erro ao sincronizar com /api/sync:', e);
     }
+
+    // 2. Se estiver rodando fora do localhost (ex: no Vercel ou no celular via 4G), replica também diretamente para o túnel do PC local
+    if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+      try {
+        fetch('https://brass-shorts-assure-leave.trycloudflare.com/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payloadJson
+        }).catch(() => {});
+      } catch {}
+    }
+
+    const syncEl = document.getElementById('cloudSyncStatus');
+    if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Sincronizado (PC, Celular & Nuvem)`;
   }
 
   persistAll() {
@@ -652,16 +796,60 @@ const app = {
         state.fornecedores = fornData;
       }
 
-      // 4. eBooks & Esquemas
-      const { data: ebkData } = await db.from('ebooks').select('*').order('created_at', { ascending: false });
-      if (ebkData && ebkData.length) {
-        state.ebooks = ebkData;
+      // 4. eBooks & Esquemas (Merge Seguro - Preserva eBooks cadastrados no PC)
+      try {
+        const { data: ebkData } = await db.from('ebooks').select('*').order('created_at', { ascending: false });
+        if (Array.isArray(ebkData)) {
+          const mergedEbooks = [...ebkData];
+          if (Array.isArray(state.ebooks)) {
+            state.ebooks.forEach(le => {
+              if (!mergedEbooks.some(se => se.id === le.id || (se.titulo && le.titulo && se.titulo.toLowerCase().trim() === le.titulo.toLowerCase().trim()))) {
+                mergedEbooks.push(le);
+                // Replica para a nuvem Supabase
+                db.from('ebooks').insert({
+                  id: le.id,
+                  titulo: le.titulo,
+                  marca: le.marca,
+                  modelo: le.modelo,
+                  categoria: le.categoria,
+                  url: le.url,
+                  descricao: le.descricao
+                }).catch(() => {});
+              }
+            });
+          }
+          if (mergedEbooks.length) state.ebooks = mergedEbooks;
+        }
+      } catch (e) {
+        console.warn('Supabase ebooks sync:', e);
       }
 
-      // 5. Videoaulas Técnicas
-      const { data: vidData } = await db.from('videoaulas').select('*').order('created_at', { ascending: false });
-      if (vidData && vidData.length) {
-        state.videoaulas = vidData;
+      // 5. Videoaulas Técnicas (Merge Seguro - Preserva Videoaulas cadastradas no PC)
+      try {
+        const { data: vidData } = await db.from('videoaulas').select('*').order('created_at', { ascending: false });
+        if (Array.isArray(vidData)) {
+          const mergedVids = [...vidData];
+          if (Array.isArray(state.videoaulas)) {
+            state.videoaulas.forEach(lv => {
+              if (!mergedVids.some(sv => sv.id === lv.id || (sv.titulo && lv.titulo && sv.titulo.toLowerCase().trim() === lv.titulo.toLowerCase().trim()))) {
+                mergedVids.push(lv);
+                // Replica para a nuvem Supabase
+                db.from('videoaulas').insert({
+                  id: lv.id,
+                  titulo: lv.titulo,
+                  marca: lv.marca,
+                  modelo: lv.modelo,
+                  categoria: lv.categoria,
+                  url: lv.url,
+                  descricao: lv.descricao
+                }).catch(() => {});
+              }
+            });
+          }
+          if (mergedVids.length) state.videoaulas = mergedVids;
+        }
+      } catch (e) {
+        console.warn('Supabase videoaulas sync:', e);
       }
 
       state.persistAll();
@@ -697,7 +885,7 @@ const app = {
     state.config.address = document.getElementById('cfgStoreAddress').value.trim();
     state.config.warranty = document.getElementById('cfgStoreWarranty').value.trim();
     state.config.printModel = document.getElementById('cfgPrintModel').value;
-    state.saveStorage('chcell_config', state.config);
+    state.persistAll();
     this.applyStoreConfig();
     alert('Configurações da assistência salvas com sucesso!');
   },
@@ -4098,13 +4286,13 @@ const fornecedoresManager = {
         }
       }
 
-      state.saveStorage('chcell_fornecedores', state.fornecedores);
+      state.persistAll();
       this.closeModal();
       this.render();
       alert('Fornecedor salvo com sucesso!');
     } catch (err) {
       console.warn('Erro ao salvar fornecedor:', err);
-      state.saveStorage('chcell_fornecedores', state.fornecedores);
+      state.persistAll();
       this.closeModal();
       this.render();
     }
@@ -4116,7 +4304,7 @@ const fornecedoresManager = {
     if (!confirm(`Deseja realmente remover o fornecedor "${f.nome}"?`)) return;
 
     state.fornecedores = state.fornecedores.filter(x => x.id !== id);
-    state.saveStorage('chcell_fornecedores', state.fornecedores);
+    state.persistAll();
 
     if (db && state.currentUser) {
       try {
@@ -4282,18 +4470,20 @@ const ebooksManager = {
         const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
         state.ebooks.unshift(novo);
         if (db && state.currentUser) {
-          const { data } = await db.from('ebooks').insert({ ...payload, user_id: state.currentUser.id }).select().single();
+          const insertPayload = { ...payload };
+          if (state.currentUser?.aud === 'authenticated') insertPayload.user_id = state.currentUser.id;
+          const { data } = await db.from('ebooks').insert(insertPayload).select().single();
           if (data && data.id) novo.id = data.id;
         }
       }
 
-      state.saveStorage('chcell_ebooks', state.ebooks);
+      state.persistAll();
       this.closeModal();
       this.render();
       alert('eBook salvo com sucesso!');
     } catch (err) {
       console.warn('Erro ao salvar eBook:', err);
-      state.saveStorage('chcell_ebooks', state.ebooks);
+      state.persistAll();
       this.closeModal();
       this.render();
     }
@@ -4305,7 +4495,7 @@ const ebooksManager = {
     if (!confirm(`Deseja realmente remover o material "${eb.titulo}"?`)) return;
 
     state.ebooks = state.ebooks.filter(x => x.id !== id);
-    state.saveStorage('chcell_ebooks', state.ebooks);
+    state.persistAll();
 
     if (db && state.currentUser) {
       try {
@@ -4511,18 +4701,20 @@ const videoaulasManager = {
         const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
         state.videoaulas.unshift(novo);
         if (db && state.currentUser) {
-          const { data } = await db.from('videoaulas').insert({ ...payload, user_id: state.currentUser.id }).select().single();
+          const insertPayload = { ...payload };
+          if (state.currentUser?.aud === 'authenticated') insertPayload.user_id = state.currentUser.id;
+          const { data } = await db.from('videoaulas').insert(insertPayload).select().single();
           if (data && data.id) novo.id = data.id;
         }
       }
 
-      state.saveStorage('chcell_videoaulas', state.videoaulas);
+      state.persistAll();
       this.closeModal();
       this.render();
       alert('Videoaula salva com sucesso!');
     } catch (err) {
       console.warn('Erro ao salvar videoaula:', err);
-      state.saveStorage('chcell_videoaulas', state.videoaulas);
+      state.persistAll();
       this.closeModal();
       this.render();
     }
@@ -4534,7 +4726,7 @@ const videoaulasManager = {
     if (!confirm(`Deseja realmente remover a videoaula "${v.titulo}"?`)) return;
 
     state.videoaulas = state.videoaulas.filter(x => x.id !== id);
-    state.saveStorage('chcell_videoaulas', state.videoaulas);
+    state.persistAll();
 
     if (db && state.currentUser) {
       try {
