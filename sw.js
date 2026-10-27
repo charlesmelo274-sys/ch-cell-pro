@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v6-pdf-live';
+const CACHE_NAME = 'chcell-pro-v7-typography-clean';
 const ASSETS = [
   './',
   './index.html',

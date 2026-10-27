@@ -8,6 +8,59 @@ import path from 'path';
 
 const TUNNEL_URL = 'https://sticky-laboratory-guarantee-newbie.trycloudflare.com/api/sync';
 
+function fixMojibake(str) {
+  if (typeof str !== 'string' || !str) return str || '';
+  let s = str;
+  if (/[\u00C2\u00C3\u00E2]/.test(s)) {
+    try {
+      const decoded = decodeURIComponent(escape(s));
+      if (decoded && !decoded.includes('\uFFFD')) s = decoded;
+    } catch (e) {}
+  }
+  return s
+    .replace(/Ã§/g, 'ç')
+    .replace(/Ã‡/g, 'Ç')
+    .replace(/Ã£/g, 'ã')
+    .replace(/Ãƒ/g, 'Ã')
+    .replace(/Ã¡/g, 'á')
+    .replace(/Ã/g, 'Á')
+    .replace(/Ã /g, 'à')
+    .replace(/Ã /g, 'à ')
+    .replace(/Ã€/g, 'À')
+    .replace(/Ã©/g, 'é')
+    .replace(/Ã‰/g, 'É')
+    .replace(/Ãª/g, 'ê')
+    .replace(/ÃŠ/g, 'Ê')
+    .replace(/Ã­/g, 'í')
+    .replace(/Ã/g, 'Í')
+    .replace(/Ã³/g, 'ó')
+    .replace(/Ã“/g, 'Ó')
+    .replace(/Ãµ/g, 'õ')
+    .replace(/Ã•/g, 'Õ')
+    .replace(/Ã´/g, 'ô')
+    .replace(/Ã”/g, 'Ô')
+    .replace(/Ãº/g, 'ú')
+    .replace(/Ãš/g, 'Ú')
+    .replace(/Ã¢/g, 'â')
+    .replace(/Ã‚/g, 'Â')
+    .replace(/â€”/g, '—')
+    .replace(/â€“/g, '–');
+}
+
+function deepSanitize(obj) {
+  if (!obj) return obj;
+  if (typeof obj === 'string') return fixMojibake(obj);
+  if (Array.isArray(obj)) return obj.map(deepSanitize);
+  if (typeof obj === 'object') {
+    const res = {};
+    for (const k of Object.keys(obj)) {
+      res[k] = deepSanitize(obj[k]);
+    }
+    return res;
+  }
+  return obj;
+}
+
 // Cache em memória para instâncias ativas da função serverless
 let memorySyncCache = null;
 
@@ -32,7 +85,8 @@ export default async function handler(req, res) {
     }
 
     if (payload && typeof payload === 'object') {
-      memorySyncCache = { ...payload, last_updated: Date.now() };
+      const cleanPayload = deepSanitize(payload);
+      memorySyncCache = { ...cleanPayload, last_updated: Date.now() };
 
       // Reenvia assincronamente para o servidor central no PC local via túnel Cloudflare
       try {
@@ -66,15 +120,15 @@ export default async function handler(req, res) {
     if (localRes.ok) {
       const data = await localRes.json();
       if (data && typeof data === 'object') {
-        memorySyncCache = data;
-        return res.status(200).json(data);
+        memorySyncCache = deepSanitize(data);
+        return res.status(200).json(memorySyncCache);
       }
     }
   } catch {}
 
   // 2. Se o túnel estiver momentaneamente indisponível, retorna o cache em memória
   if (memorySyncCache) {
-    return res.status(200).json(memorySyncCache);
+    return res.status(200).json(deepSanitize(memorySyncCache));
   }
 
   // 3. Fallback: Lê database.json empacotado no deploy para manter todos os dados disponíveis
@@ -82,8 +136,8 @@ export default async function handler(req, res) {
     const dbPath = path.join(process.cwd(), 'database.json');
     if (fs.existsSync(dbPath)) {
       const fileData = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-      memorySyncCache = fileData;
-      return res.status(200).json(fileData);
+      memorySyncCache = deepSanitize(fileData);
+      return res.status(200).json(memorySyncCache);
     }
   } catch (err) {
     console.warn('Erro ao ler database.json de fallback:', err);

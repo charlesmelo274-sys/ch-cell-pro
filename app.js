@@ -10,6 +10,85 @@ const SUPABASE_ANON = 'sb_publishable_wyBsvwcafNB5vqpWUTFzeA_ZmZgyldd';
 const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Sanitizador universal de caracteres / mojibake UTF-8
+function fixMojibake(str) {
+  if (typeof str !== 'string' || !str) return str || '';
+  let s = str;
+  if (/[\u00C2\u00C3\u00E2]/.test(s)) {
+    try {
+      const decoded = decodeURIComponent(escape(s));
+      if (decoded && !decoded.includes('\uFFFD')) s = decoded;
+    } catch (e) {}
+  }
+  return s
+    .replace(/Ã§/g, 'ç')
+    .replace(/Ã‡/g, 'Ç')
+    .replace(/Ã£/g, 'ã')
+    .replace(/Ãƒ/g, 'Ã')
+    .replace(/Ã¡/g, 'á')
+    .replace(/Ã /g, 'Á')
+    .replace(/Ã /g, 'à')
+    .replace(/Ã /g, 'à ')
+    .replace(/Ã€/g, 'À')
+    .replace(/Ã©/g, 'é')
+    .replace(/Ã‰/g, 'É')
+    .replace(/Ãª/g, 'ê')
+    .replace(/ÃŠ/g, 'Ê')
+    .replace(/Ã­/g, 'í')
+    .replace(/Ã /g, 'Í')
+    .replace(/Ã³/g, 'ó')
+    .replace(/Ã“/g, 'Ó')
+    .replace(/Ãµ/g, 'õ')
+    .replace(/Ã•/g, 'Õ')
+    .replace(/Ã´/g, 'ô')
+    .replace(/Ã”/g, 'Ô')
+    .replace(/Ãº/g, 'ú')
+    .replace(/Ãš/g, 'Ú')
+    .replace(/Ã¢/g, 'â')
+    .replace(/Ã‚/g, 'Â')
+    .replace(/â€”/g, '—')
+    .replace(/â€“/g, '–')
+    .replace(/ASSIST[\uFFFDÃª]+NCIA/gi, 'ASSISTÊNCIA')
+    .replace(/Assist[\uFFFDÃª]+ncia/gi, 'Assistência')
+    .replace(/T[\uFFFDÃ©]+CNICA/gi, 'TÉCNICA')
+    .replace(/T[\uFFFDÃ©]+cnica/gi, 'Técnica')
+    .replace(/t[\uFFFDÃ©]+cnica/gi, 'técnica')
+    .replace(/T[\uFFFDÃ©]+cnico/gi, 'Técnico')
+    .replace(/t[\uFFFDÃ©]+cnico/gi, 'técnico')
+    .replace(/servi[\uFFFDÃ§]+o/gi, 'serviço')
+    .replace(/pe[\uFFFDÃ§]+a/gi, 'peça')
+    .replace(/substitu[\uFFFDÃ­]+da/gi, 'substituída')
+    .replace(/N[\uFFFDÃ£]+o/gi, 'Não')
+    .replace(/n[\uFFFDÃ£]+o/gi, 'não')
+    .replace(/Aten[\uFFFDÃ§Ã£]+o/gi, 'Atenção')
+    .replace(/aten[\uFFFDÃ§Ã£]+o/gi, 'atenção')
+    .replace(/Respons[\uFFFDÃ¡]+vel/gi, 'Responsável')
+    .replace(/respons[\uFFFDÃ¡]+vel/gi, 'responsável')
+    .replace(/Oz[\uFFFDÃ©]+ias/gi, 'Ozéias')
+    .replace(/Gest[\uFFFDÃ£]+o/gi, 'Gestão')
+    .replace(/balc[\uFFFDÃ£]+o/gi, 'balcão')
+    .replace(/Balc[\uFFFDÃ£]+o/gi, 'Balcão')
+    .replace(/padr[\uFFFDÃ£]+o/gi, 'padrão')
+    .replace(/Padr[\uFFFDÃ£]+o/gi, 'Padrão');
+}
+
+function deepSanitize(obj) {
+  if (!obj) return obj;
+  if (typeof obj === 'string') return fixMojibake(obj);
+  if (Array.isArray(obj)) return obj.map(deepSanitize);
+  if (typeof obj === 'object') {
+    const res = {};
+    for (const k of Object.keys(obj)) {
+      res[k] = deepSanitize(obj[k]);
+    }
+    return res;
+  }
+  return obj;
+}
+
+window.fixMojibake = fixMojibake;
+window.deepSanitize = deepSanitize;
+
 // Catalogo padrão de itens do checklist (Foto 3)
 const CHECKLIST_CATALOGO = [
   { id: 'display', name: 'Tela, touch e imagem' },
@@ -367,6 +446,24 @@ class AppState {
       printModel: 'thermal-80'
     });
 
+    // Auto-sanitização imediata de todas as coleções e configurações locais
+    this.config = deepSanitize(this.config);
+    if (!this.config.storeName || /Assist.*[Ã\uFFFD]|T.*[Ã\uFFFD]/.test(this.config.storeName)) {
+      this.config.storeName = 'CH Cell Assistência Técnica';
+    }
+    if (!this.config.warranty || /servi.*[Ã\uFFFD]|pe.*[Ã\uFFFD]/.test(this.config.warranty)) {
+      this.config.warranty = 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída. Não cobre danos por quedas, trincados ou umidade.';
+    }
+    this.orders = deepSanitize(this.orders);
+    this.clientes = deepSanitize(this.clientes);
+    this.products = deepSanitize(this.products);
+    this.fornecedores = deepSanitize(this.fornecedores);
+    this.ebooks = deepSanitize(this.ebooks);
+    this.videoaulas = deepSanitize(this.videoaulas);
+    this.funcionarios = deepSanitize(this.funcionarios);
+    this.acessos = deepSanitize(this.acessos);
+    this.expenses = deepSanitize(this.expenses);
+
     this.ensureClientesFromOrders();
 
     this.activeChecklist = {};
@@ -587,20 +684,26 @@ class AppState {
       });
     }
 
-    // Atualiza estado unificado em memória
-    this.orders = data.orders;
-    this.products = data.products;
-    this.fornecedores = data.fornecedores;
-    this.ebooks = data.ebooks;
-    this.videoaulas = data.videoaulas;
-    this.sales = data.sales;
-    this.clientes = data.clientes;
+    // Atualiza estado unificado em memória (com sanitização universal UTF-8)
+    this.orders = deepSanitize(data.orders);
+    this.products = deepSanitize(data.products);
+    this.fornecedores = deepSanitize(data.fornecedores);
+    this.ebooks = deepSanitize(data.ebooks);
+    this.videoaulas = deepSanitize(data.videoaulas);
+    this.sales = deepSanitize(data.sales);
+    this.clientes = deepSanitize(data.clientes);
     this.ensureClientesFromOrders();
-    this.expenses = data.expenses;
-    this.config = data.config || this.config;
-    this.funcionarios = data.funcionarios;
-    this.acessos = data.acessos;
-    this.estoqueMovimentacoes = data.estoqueMovimentacoes;
+    this.expenses = deepSanitize(data.expenses);
+    this.config = deepSanitize(data.config || this.config);
+    if (!this.config.storeName || /Assist.*[Ã\uFFFD]|T.*[Ã\uFFFD]/.test(this.config.storeName)) {
+      this.config.storeName = 'CH Cell Assistência Técnica';
+    }
+    if (!this.config.warranty || /servi.*[Ã\uFFFD]|pe.*[Ã\uFFFD]/.test(this.config.warranty)) {
+      this.config.warranty = 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída. Não cobre danos por quedas, trincados ou umidade.';
+    }
+    this.funcionarios = deepSanitize(data.funcionarios);
+    this.acessos = deepSanitize(data.acessos);
+    this.estoqueMovimentacoes = deepSanitize(data.estoqueMovimentacoes);
     this.last_updated = Math.max(data.last_updated || 0, this.last_updated || 0, Date.now());
 
     // Salva cópia local offline completa
@@ -876,12 +979,15 @@ const app = {
     const cfgWarrEl = document.getElementById('cfgStoreWarranty');
     const cfgPrintEl = document.getElementById('cfgPrintModel');
 
-    if (nameEl) nameEl.textContent = state.config.storeName.replace(' Assistência Técnica', '');
-    if (pubStoreEl) pubStoreEl.textContent = state.config.storeName;
-    if (cfgNameEl) cfgNameEl.value = state.config.storeName;
-    if (cfgPhoneEl) cfgPhoneEl.value = state.config.whatsApp;
-    if (cfgAddrEl) cfgAddrEl.value = state.config.address;
-    if (cfgWarrEl) cfgWarrEl.value = state.config.warranty;
+    const cleanStore = fixMojibake(state.config.storeName || 'CH Cell Assistência Técnica');
+    const cleanWarr = fixMojibake(state.config.warranty || '');
+
+    if (nameEl) nameEl.textContent = cleanStore.replace(/\s+Assist[êeé]ncia\s+T[ée]cnica/gi, '').replace(/\s+Assist.*T.*/gi, '');
+    if (pubStoreEl) pubStoreEl.textContent = cleanStore;
+    if (cfgNameEl) cfgNameEl.value = cleanStore;
+    if (cfgPhoneEl) cfgPhoneEl.value = state.config.whatsApp || '';
+    if (cfgAddrEl) cfgAddrEl.value = fixMojibake(state.config.address || '');
+    if (cfgWarrEl) cfgWarrEl.value = cleanWarr;
     if (cfgPrintEl) cfgPrintEl.value = state.config.printModel || 'thermal-80';
   },
 
@@ -1645,6 +1751,7 @@ Qualquer dúvida estamos à disposição!`;
       alert('Ordem de Serviço não localizada para gerar o PDF.');
       return;
     }
+    os = deepSanitize(os);
 
     try {
       const JsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
@@ -1686,11 +1793,12 @@ Qualquer dúvida estamos à disposição!`;
       p.setTextColor(255, 255, 255);
       p.setFont('helvetica', 'bold');
       p.setFontSize(20);
-      p.text(state.config.storeName || 'CH CELL', 18, 18);
+      const pdfStoreName = fixMojibake(state.config.storeName || 'CH Cell Assistência Técnica');
+      p.text(pdfStoreName, 18, 18);
       p.setFontSize(9);
       p.setFont('helvetica', 'normal');
       p.text('ASSISTÊNCIA TÉCNICA ESPECIALIZADA', 18, 25);
-      p.text(`${state.config.address || 'Matriz'} • WhatsApp: ${state.config.whatsApp || ''}`, 18, 31);
+      p.text(`${fixMojibake(state.config.address || 'Matriz')} • WhatsApp: ${state.config.whatsApp || ''}`, 18, 31);
 
       p.setFont('helvetica', 'bold');
       p.setFontSize(13);
@@ -1698,33 +1806,33 @@ Qualquer dúvida estamos à disposição!`;
       p.setFontSize(9);
       p.setFont('helvetica', 'normal');
       p.text(`Entrada: ${os.data_entrada || new Date().toISOString().slice(0, 10)}`, 125, 26);
-      p.text(`Status: ${os.status || 'Em Aberto'}`, 125, 31);
+      p.text(`Status: ${fixMojibake(os.status || 'Em Aberto')}`, 125, 31);
 
       p.setTextColor(23, 42, 53);
 
       // 1. DADOS DO CLIENTE
       section('DADOS DO CLIENTE');
-      text(`Nome: ${os.cliente_nome || 'Consumidor Final'}`);
+      text(`Nome: ${fixMojibake(os.cliente_nome || 'Consumidor Final')}`);
       text(`WhatsApp / Telefone: ${os.cliente_celular || 'Não informado'}`);
 
       // 2. APARELHO E DEFEITO
       section('APARELHO E DEFEITO REPORTADO');
-      text(`Marca / Modelo: ${[os.marca, os.modelo].filter(Boolean).join(' ') || 'Não especificado'}`);
-      text(`Cor: ${os.cor || '—'}    |    Senha / Padrão: ${os.senha || 'Não informada'}`);
-      text(`Defeito Relatado: ${os.defeito_relatado || 'Não especificado'}`);
+      text(`Marca / Modelo: ${fixMojibake([os.marca, os.modelo].filter(Boolean).join(' ')) || 'Não especificado'}`);
+      text(`Cor: ${fixMojibake(os.cor || '—')}    |    Senha / Padrão: ${fixMojibake(os.senha || 'Não informada')}`);
+      text(`Defeito Relatado: ${fixMojibake(os.defeito_relatado || 'Não especificado')}`);
 
       // 3. CHECKLIST DE ENTRADA
       section('CHECKLIST DE ENTRADA E CONFERÊNCIA');
-      const ckResumo = this.formatChecklistTexto(os);
+      const ckResumo = fixMojibake(this.formatChecklistTexto(os));
       text(ckResumo, 9);
       if (os.checklist_obs) {
-        text(`Observações de Avarias: ${os.checklist_obs}`, 9);
+        text(`Observações de Avarias: ${fixMojibake(os.checklist_obs)}`, 9);
       }
 
       // 4. SERVIÇO E VALORES
       section('SERVIÇO AUTORIZADO E VALORES');
-      text(`Serviço Autorizado: ${os.servico || 'Diagnóstico e reparo técnico'}`);
-      text(`Previsão de Conclusão: ${os.previsao_entrega || 'A combinar'}`);
+      text(`Serviço Autorizado: ${fixMojibake(os.servico || 'Diagnóstico e reparo técnico')}`);
+      text(`Previsão de Conclusão: ${fixMojibake(os.previsao_entrega || 'A combinar')}`);
       text(`Valor Total do Serviço: ${state.formatMoney(os.valor || 0)}`);
       text(`Valor Pago (Sinal): ${state.formatMoney(os.valor_pago || 0)}`);
       const pendente = Math.max(0, (Number(os.valor) || 0) - (Number(os.valor_pago) || 0));
@@ -1732,7 +1840,8 @@ Qualquer dúvida estamos à disposição!`;
 
       // 5. GARANTIA
       section('GARANTIA E CONDIÇÕES');
-      text(state.config.warranty || 'Garantia legal de 90 dias referente ao serviço executado e peças substituídas, conforme o Art. 26 do Código de Defesa do Consumidor (Lei 8.078/1990). A garantia não cobre danos por quedas, impacto, telas trincadas ou oxidação por líquidos.', 8.5);
+      const pdfWarr = fixMojibake(state.config.warranty || '');
+      text(pdfWarr || 'Garantia legal de 90 dias referente ao serviço executado e peças substituídas, conforme o Art. 26 do Código de Defesa do Consumidor (Lei 8.078/1990). A garantia não cobre danos por quedas, impacto, telas trincadas ou oxidação por líquidos.', 8.5);
 
       // 6. DECLARAÇÃO E ASSINATURA
       if (y > 195) { p.addPage(); y = 30; }
@@ -1754,8 +1863,8 @@ Qualquer dúvida estamos à disposição!`;
       if (y > 260) { p.addPage(); y = 35; }
       p.line(20, y + 8, 115, y + 8);
       p.line(132, y + 8, 190, y + 8);
-      p.text(os.cliente_nome || 'Nome completo do cliente', 36, y + 13);
-      p.text(`Responsável: ${state.config.storeName}`, 135, y + 13);
+      p.text(fixMojibake(os.cliente_nome || 'Nome completo do cliente'), 36, y + 13);
+      p.text(`Responsável: ${pdfStoreName}`, 135, y + 13);
 
       // Rodapé
       p.setTextColor(100, 110, 120);
@@ -1773,6 +1882,7 @@ Qualquer dúvida estamos à disposição!`;
 
   renderPublicNotaFiscal(os) {
     if (!os) return;
+    os = deepSanitize(os);
     state.activeTrackingOS = os;
 
     const screen = document.getElementById('publicNotaFiscalScreen');
@@ -1784,26 +1894,31 @@ Qualquer dúvida estamos à disposição!`;
     if (authScreen) authScreen.classList.add('hidden');
 
     // Popula cabeçalho
-    const storeName = state.config.storeName || 'CH CELL ASSISTÊNCIA TÉCNICA';
-    document.getElementById('pubDocStoreName').textContent = storeName;
-    document.getElementById('pubDocStoreAddr').textContent = state.config.address || 'Rua Principal, 120 - Centro';
-    document.getElementById('pubDocStorePhone').textContent = `WhatsApp / Atendimento: ${state.config.whatsApp || '(21) 98765-4321'}`;
+    const rawStore = state.config.storeName || 'CH CELL ASSISTÊNCIA TÉCNICA';
+    const storeName = fixMojibake(rawStore);
+    const headerTitle = storeName.toUpperCase().includes('ASSIST') ? storeName.toUpperCase() : `${storeName.toUpperCase()} ASSISTÊNCIA TÉCNICA`;
+    const pubStoreEl = document.getElementById('pubDocStoreName');
+    if (pubStoreEl) pubStoreEl.textContent = headerTitle;
+    const pubAddrEl = document.getElementById('pubDocStoreAddr');
+    if (pubAddrEl) pubAddrEl.textContent = fixMojibake(state.config.address || 'Rua Principal, 120 - Centro');
+    const pubPhoneEl = document.getElementById('pubDocStorePhone');
+    if (pubPhoneEl) pubPhoneEl.textContent = `WhatsApp / Atendimento: ${state.config.whatsApp || '(21) 98765-4321'}`;
 
     // Popula dados da OS
-    document.getElementById('pubDocCode').textContent = `#${os.numero}`;
+    document.getElementById('pubDocCode').textContent = `#${String(os.numero || '').toUpperCase()}`;
     document.getElementById('pubDocDate').textContent = os.data_entrada || new Date().toISOString().slice(0, 10);
-    document.getElementById('pubDocPrevisao').textContent = os.previsao_entrega || 'A combinar';
+    document.getElementById('pubDocPrevisao').textContent = fixMojibake(os.previsao_entrega || 'A combinar');
 
     // Popula dados do cliente e aparelho
-    document.getElementById('pubDocClientName').textContent = os.cliente_nome || 'Consumidor Final';
+    document.getElementById('pubDocClientName').textContent = fixMojibake(os.cliente_nome || 'Consumidor Final');
     document.getElementById('pubDocClientPhone').textContent = os.cliente_celular || 'Não informado';
-    document.getElementById('pubDocDeviceModel').textContent = `${os.marca || ''} ${os.modelo || ''}`.trim() || 'Aparelho não especificado';
-    document.getElementById('pubDocDeviceColor').textContent = os.cor || '—';
-    document.getElementById('pubDocDevicePass').textContent = os.senha || '—';
+    document.getElementById('pubDocDeviceModel').textContent = fixMojibake(`${os.marca || ''} ${os.modelo || ''}`.trim()) || 'Aparelho não especificado';
+    document.getElementById('pubDocDeviceColor').textContent = fixMojibake(os.cor || '—');
+    document.getElementById('pubDocDevicePass').textContent = fixMojibake(os.senha || '—');
 
     // Defeito e Serviço
-    document.getElementById('pubDocDefect').textContent = os.defeito_relatado || 'Em diagnóstico técnico';
-    document.getElementById('pubDocService').textContent = os.servico || 'Diagnóstico e reparo autorizado em bancada';
+    document.getElementById('pubDocDefect').textContent = fixMojibake(os.defeito_relatado || 'Em diagnóstico técnico');
+    document.getElementById('pubDocService').textContent = fixMojibake(os.servico || 'Diagnóstico e reparo autorizado em bancada');
 
     // Checklist
     const badgesContainer = document.getElementById('pubDocChecklistBadges');
@@ -1822,7 +1937,8 @@ Qualquer dúvida estamos à disposição!`;
           const badgeClass = isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
                              isWarn ? 'bg-amber-50 text-amber-700 border-amber-200' : 
                              'bg-slate-100 text-slate-500 border-slate-200';
-          return `<span class="px-2 py-0.5 rounded-lg border text-[11px] font-bold ${badgeClass}">${labels[k] || k}: ${v}</span>`;
+          const cleanVal = fixMojibake(v);
+          return `<span class="px-2 py-0.5 rounded-lg border text-[11px] font-bold ${badgeClass}">${labels[k] || k}: ${cleanVal}</span>`;
         }).join('');
       } else {
         badgesContainer.innerHTML = `<span class="text-slate-400 text-[11px]">Checklist padrão de entrada verificado.</span>`;
@@ -1830,7 +1946,7 @@ Qualquer dúvida estamos à disposição!`;
     }
     const notesEl = document.getElementById('pubDocChecklistNotes');
     if (notesEl) {
-      notesEl.textContent = os.checklist_obs || 'Sem avarias relatadas na entrada do equipamento.';
+      notesEl.textContent = fixMojibake(os.checklist_obs || 'Sem avarias relatadas na entrada do equipamento.');
     }
 
     // Valores
@@ -1843,15 +1959,16 @@ Qualquer dúvida estamos à disposição!`;
 
     // Termo de garantia
     const warrEl = document.getElementById('pubDocWarrantyText');
-    if (warrEl && state.config.warranty) {
-      warrEl.textContent = state.config.warranty;
+    if (warrEl) {
+      const cleanWarr = fixMojibake(state.config.warranty || '');
+      warrEl.textContent = cleanWarr || 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída, conforme o Art. 26 do Código de Defesa do Consumidor (Lei 8.078/1990). A garantia não cobre danos por quedas, impacto, telas quebradas ou trincadas, oxidação por contato com líquidos ou intervenção de terceiros.';
     }
 
     // Assinaturas
     const signClient = document.getElementById('pubDocSignClient');
-    if (signClient) signClient.textContent = os.cliente_nome || 'Assinatura do Cliente';
+    if (signClient) signClient.textContent = fixMojibake(os.cliente_nome || 'Assinatura do Cliente');
     const signStore = document.getElementById('pubDocSignStore');
-    if (signStore) signStore.textContent = storeName;
+    if (signStore) signStore.textContent = fixMojibake(storeName) || 'CH Cell Assistência Técnica';
 
     // Rodapé carimbo
     const footerStamp = document.getElementById('pubDocFooterStamp');
@@ -1976,6 +2093,7 @@ Qualquer dúvida estamos à disposição!`;
 
     // Renderiza a tela oficial de Nota Fiscal / Comprovante
     if (resolvedOS) {
+      resolvedOS = deepSanitize(resolvedOS);
       this.renderPublicNotaFiscal(resolvedOS);
       if (autoDownload) {
         setTimeout(() => this.downloadOSPDF(resolvedOS), 600);
@@ -3162,8 +3280,9 @@ Qualquer dúvida estamos à disposição!`;
   // 12. IMPRESSÃO COMPLETA (A4, TÉRMICA 80MM, TÉRMICA 58MM E ETIQUETA QR)
   // =========================================================================
   printOS(osId) {
-    const os = state.orders.find(o => o.id === osId);
-    if (!os) return;
+    const rawOS = state.orders.find(o => o.id === osId);
+    if (!rawOS) return;
+    const os = deepSanitize(rawOS);
 
     const printArea = document.getElementById('printArea');
     const model = state.config.printModel || 'thermal-80';
@@ -3175,14 +3294,17 @@ Qualquer dúvida estamos à disposição!`;
     const trackUrl = `${window.location.origin}${window.location.pathname}?track=${os.numero}`;
 
     let qrCodeHtml = `<div id="printQrCodeContainer" class="flex justify-center my-2"></div>`;
+    const printStore = fixMojibake(state.config.storeName || 'CH Cell Assistência Técnica');
+    const printAddr = fixMojibake(state.config.address || 'Rua Principal, 120 - Centro');
+    const printWarr = fixMojibake(state.config.warranty || 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída.');
 
     if (model === 'thermal-80' || model === 'thermal-58') {
       // Cupom Térmico Não Fiscal
       printArea.innerHTML = `
         <div class="thermal-box text-center font-mono">
-          <p class="font-bold text-sm uppercase">${state.config.storeName}</p>
-          <p class="text-xs">${state.config.address}</p>
-          <p class="text-xs">WhatsApp: ${state.config.whatsApp}</p>
+          <p class="font-bold text-sm uppercase">${printStore}</p>
+          <p class="text-xs">${printAddr}</p>
+          <p class="text-xs">WhatsApp: ${state.config.whatsApp || ''}</p>
           <p class="border-b border-dashed border-black my-1"></p>
 
           <p class="font-bold text-sm">ORDEM DE SERVIÇO #${os.numero}</p>
@@ -3213,7 +3335,7 @@ Qualquer dúvida estamos à disposição!`;
           <p class="text-[9px] break-all">${trackUrl}</p>
 
           <p class="border-b border-dashed border-black my-1"></p>
-          <p class="text-[8px] text-justify">${state.config.warranty}</p>
+          <p class="text-[8px] text-justify">${printWarr}</p>
 
           <div class="mt-4 pt-4 border-t border-black text-center text-xs">
             <p>Assinatura do Cliente</p>
@@ -3226,8 +3348,8 @@ Qualquer dúvida estamos à disposição!`;
         <div class="max-w-3xl mx-auto p-4 space-y-4">
           <div class="flex items-center justify-between border-b pb-3">
             <div>
-              <h1 class="text-xl font-bold uppercase">${state.config.storeName}</h1>
-              <p class="text-xs text-slate-500">${state.config.address} • Tel: ${state.config.whatsApp}</p>
+              <h1 class="text-xl font-bold uppercase">${printStore}</h1>
+              <p class="text-xs text-slate-500">${printAddr} • Tel: ${state.config.whatsApp || ''}</p>
             </div>
             <div class="text-right">
               <h2 class="text-lg font-black text-slate-900">OS #${os.numero}</h2>
@@ -3277,13 +3399,13 @@ Qualquer dúvida estamos à disposição!`;
 
           <div class="p-3 border rounded-xl text-[10px] text-justify space-y-1">
             <p class="font-bold">Termos de Garantia e Condições de Atendimento:</p>
-            <p>${state.config.warranty}</p>
+            <p>${printWarr}</p>
             <p>Declaro que li e concordo com os termos e com o checklist de entrada do aparelho registrado acima.</p>
           </div>
 
           <div class="grid grid-cols-2 gap-8 pt-8 text-center text-xs">
             <div class="border-t border-black pt-1">Assinatura do Cliente</div>
-            <div class="border-t border-black pt-1">${state.config.storeName}</div>
+            <div class="border-t border-black pt-1">${printStore}</div>
           </div>
         </div>
       `;
