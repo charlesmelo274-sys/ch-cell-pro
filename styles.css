@@ -171,4 +171,31 @@ body {
   body.print-a4 .page-break {
     page-break-after: always;
   }
+
+  /* Impressão direta da Nota Fiscal Pública da OS */
+  #publicNotaFiscalScreen:not(.hidden) {
+    position: static !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+  #publicDocSheet {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    display: block !important;
+  }
+}
+
+/* Oculta layout interno e login quando um cliente abre o link da Nota Fiscal / Rastreio */
+html.is-public-client #authScreen,
+html.is-public-client header,
+html.is-public-client aside,
+html.is-public-client #bottomNav {
+  display: none !important;
 }

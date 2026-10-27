@@ -3,7 +3,10 @@
  * Sincronização em tempo real entre o link online (Vercel), Celular e PC Local (Túnel Cloudflare)
  */
 
-const TUNNEL_URL = 'https://brass-shorts-assure-leave.trycloudflare.com/api/sync';
+import fs from 'fs';
+import path from 'path';
+
+const TUNNEL_URL = 'https://sticky-laboratory-guarantee-newbie.trycloudflare.com/api/sync';
 
 // Cache em memória para instâncias ativas da função serverless
 let memorySyncCache = null;
@@ -74,7 +77,19 @@ export default async function handler(req, res) {
     return res.status(200).json(memorySyncCache);
   }
 
-  // 3. Fallback neutro informando disponibilidade
+  // 3. Fallback: Lê database.json empacotado no deploy para manter todos os dados disponíveis
+  try {
+    const dbPath = path.join(process.cwd(), 'database.json');
+    if (fs.existsSync(dbPath)) {
+      const fileData = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+      memorySyncCache = fileData;
+      return res.status(200).json(fileData);
+    }
+  } catch (err) {
+    console.warn('Erro ao ler database.json de fallback:', err);
+  }
+
+  // 4. Fallback neutro informando disponibilidade
   return res.status(200).json({
     status: 'online',
     message: 'CH Cell Pro Sync Serverless Active',

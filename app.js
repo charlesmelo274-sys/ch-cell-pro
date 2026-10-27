@@ -424,7 +424,7 @@ class AppState {
   async syncWithServer(isInitial = false) {
     const endpoints = [
       '/api/sync',
-      'https://brass-shorts-assure-leave.trycloudflare.com/api/sync'
+      'https://sticky-laboratory-guarantee-newbie.trycloudflare.com/api/sync'
     ];
 
     let data = null;
@@ -667,7 +667,7 @@ class AppState {
     // 2. Se estiver rodando fora do localhost (ex: no Vercel ou no celular via 4G), replica também diretamente para o túnel do PC local
     if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
       try {
-        fetch('https://brass-shorts-assure-leave.trycloudflare.com/api/sync', {
+        fetch('https://sticky-laboratory-guarantee-newbie.trycloudflare.com/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: payloadJson
@@ -722,10 +722,16 @@ const app = {
     this.renderAll();
     this.startTrackingTicker();
 
+    // Roteamento imediato caso seja acesso público a comprovante/nota fiscal de cliente
+    const isPublicDoc = await this.handlePublicClientRouting();
+
     // Sincroniza dados com o servidor central imediatamente
     try {
       await state.syncWithServer(true);
       this.renderAll();
+      if (isPublicDoc) {
+        this.handlePublicClientRouting();
+      }
     } catch (e) {
       console.warn('Sync inicial:', e);
     }
@@ -905,14 +911,7 @@ const app = {
       }
     });
 
-    const params = new URLSearchParams(window.location.search);
-    const trackCode = params.get('track');
-    if (trackCode) {
-      const found = state.orders.find(o => o.numero.toLowerCase() === trackCode.toLowerCase());
-      if (found) {
-        setTimeout(() => this.openPublicTracking(found.id), 200);
-      }
-    }
+    this.handlePublicClientRouting();
   },
 
   goBack() {
@@ -1262,6 +1261,9 @@ const app = {
     this.renderChecklistForm();
     this.renderPhotosGallery();
 
+    const btnModalPdf = document.getElementById('btnModalDownloadPDF');
+    if (btnModalPdf) btnModalPdf.classList.add('hidden');
+
     document.getElementById('modalOS').classList.remove('hidden');
     if (window.lucide) window.lucide.createIcons();
   },
@@ -1285,6 +1287,9 @@ const app = {
     document.getElementById('osModalTitle').textContent = 'Editar Ordem de Serviço #' + os.numero;
     document.getElementById('osModalSubtitle').textContent = 'Atualize laudo, status e peças';
     document.getElementById('osModalCodeBadge').textContent = '#' + os.numero;
+
+    const btnModalPdf = document.getElementById('btnModalDownloadPDF');
+    if (btnModalPdf) btnModalPdf.classList.remove('hidden');
 
     document.getElementById('osClientName').value = os.cliente_nome || '';
     document.getElementById('osClientPhone').value = os.cliente_celular || '';
@@ -1413,11 +1418,41 @@ const app = {
     }
 
     state.persistAll();
+
+    // Replica assincronamente para a nuvem Supabase se conectado
+    if (db && state.currentUser) {
+      try {
+        const payloadSupabase = {
+          cliente_nome: osData.cliente_nome,
+          cliente_celular: osData.cliente_celular,
+          marca: osData.marca,
+          modelo: osData.modelo,
+          cor: osData.cor,
+          senha: osData.senha,
+          defeito_relatado: osData.defeito_relatado,
+          servico: osData.servico,
+          status: osData.status,
+          valor: osData.valor,
+          valor_pago: osData.valor_pago,
+          previsao_entrega: osData.previsao_entrega || null,
+          checklist_checkin: { itens: osData.checklist, observacoes: osData.checklist_obs },
+          fotos_checkin: osData.fotos || []
+        };
+        if (!isNew && editId) {
+          db.from('ordens_servico').update(payloadSupabase).eq('id', editId).then(() => {}).catch(() => {});
+        } else {
+          db.from('ordens_servico').insert([payloadSupabase]).then(() => {}).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('Sync OS com Supabase:', err);
+      }
+    }
+
     this.closeOSModal();
     this.renderAll();
 
-    // Feedback com opção direta de enviar WhatsApp
-    if (confirm(`Ordem de Serviço #${osData.numero} salva com sucesso!\n\nDeseja enviar agora a mensagem com o link de acompanhamento no WhatsApp do cliente?`)) {
+    // Feedback com opção direta de enviar WhatsApp com o PDF / Comprovante
+    if (confirm(`Ordem de Serviço #${osData.numero} salva com sucesso!\n\nDeseja enviar agora a mensagem com o link da Nota Fiscal / Comprovante em PDF no WhatsApp do cliente?`)) {
       this.sendWhatsApp(osData.id);
     }
   },
@@ -1441,12 +1476,38 @@ const app = {
     // Contadores de checklist
     let ok = 0;
     let warn = 0;
-    Object.values(os.checklist || {}).forEach(v => {
-      if (v === 'OK') ok++;
-      else if (v === 'Atenção') warn++;
+    Object.values(os.checklist || os.checklist_checkin?.itens || {}).forEach(v => {
+      if (v === 'OK' || v === 'sem_defeito') ok++;
+      else if (v === 'Atenção' || v === 'defeito') warn++;
     });
 
-    const publicUrl = `${window.location.origin}${window.location.pathname}?track=${os.numero}`;
+    // Gera resumo compacto em Base64 para garantir abertura 100% imediata da Nota Fiscal em qualquer celular
+    let docParam = '';
+    try {
+      const summary = {
+        n: os.numero,
+        c: os.cliente_nome,
+        f: os.cliente_celular,
+        m: os.marca,
+        d: os.modelo,
+        k: os.cor,
+        s: os.senha,
+        r: os.defeito_relatado,
+        v: os.servico,
+        t: os.status,
+        p: os.valor,
+        pg: os.valor_pago,
+        e: os.data_entrada,
+        pr: os.previsao_entrega,
+        ck: os.checklist || os.checklist_checkin?.itens,
+        co: os.checklist_obs || os.checklist_checkin?.observacoes
+      };
+      docParam = '&doc=' + encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(summary)))));
+    } catch (e) {
+      console.warn('Falha ao empacotar dados da OS para o link:', e);
+    }
+
+    const publicUrl = `${window.location.origin}${window.location.pathname}?track=${encodeURIComponent(os.numero)}${docParam}`;
 
     const text = 
 `Olá, *${os.cliente_nome}*! 👋
@@ -1459,7 +1520,7 @@ Sua Ordem de Serviço foi registrada com sucesso:
 🔍 *Checklist de Entrada:* ${ok} OK / ${warn} com Atenção
 💰 *Valor Estimado:* ${state.formatMoney(os.valor)}
 
-Você pode acompanhar cada etapa do conserto ao vivo pelo link:
+📄 *Acesse e baixe sua Nota Fiscal / Comprovante da OS em PDF pelo link abaixo:*
 👉 ${publicUrl}
 
 Qualquer dúvida estamos à disposição!`;
@@ -1470,101 +1531,459 @@ Qualquer dúvida estamos à disposição!`;
   },
 
   // =========================================================================
-  // 6. RASTREIO AO VIVO DO CLIENTE (FOTO 4 IDÊNTICO AO PROTÓTIPO)
+  // 6. RASTREIO AO VIVO E NOTA FISCAL PÚBLICA DO CLIENTE EM PDF
   // =========================================================================
   openQuickTrackingModal() {
     if (state.orders.length) {
       this.openPublicTracking(state.orders[0].id);
     } else {
-      alert('Abra ao menos uma OS para visualizar o rastreio.');
+      alert('Abra ao menos uma OS para visualizar o comprovante / rastreio.');
     }
   },
 
   openPublicTracking(osId) {
-    const os = state.orders.find(o => o.id === osId);
+    const os = state.orders.find(o => o.id === osId || o.numero === osId);
     if (!os) return;
 
-    state.activeTrackingOS = os;
-
-    // Atualiza dados na simulação do iPhone
-    document.getElementById('publicClientGreeting').textContent = `OLÁ, ${(os.cliente_nome || 'CLIENTE').toUpperCase()}!`;
-    document.getElementById('publicDeviceModel').textContent = `${os.marca} ${os.modelo}`;
-    document.getElementById('publicOSNumber').textContent = `OS #${os.numero}`;
-    
-    // Status Badge
-    const statusBadge = document.getElementById('publicStatusBadge');
-    statusBadge.textContent = os.status;
-
-    // Estágio atual (1 a 5)
-    const currentStageIndex = REPAIR_STAGES.findIndex(s => s.id === os.status);
-    const activeStep = currentStageIndex !== -1 ? currentStageIndex + 1 : 1;
-    const progressPercent = Math.round((activeStep / 5) * 100);
-
-    document.getElementById('publicStepLabel').textContent = `Etapa ${activeStep} de 5`;
-    document.getElementById('publicStepName').textContent = os.status;
-    document.getElementById('publicProgressBar').style.width = `${progressPercent}%`;
-
-    // Atualiza ícones e cores da timeline
-    for (let i = 1; i <= 5; i++) {
-      const stepEl = document.getElementById(`stepTimeline${i}`);
-      if (!stepEl) continue;
-      const icon = stepEl.querySelector('.step-icon');
-      const title = stepEl.querySelector('p.font-bold');
-
-      if (i < activeStep) {
-        // Concluído
-        icon.className = 'step-icon absolute -left-8 top-0 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] z-10 shadow-sm';
-        title.className = 'font-bold text-slate-700';
-      } else if (i === activeStep) {
-        // Atual em andamento
-        icon.className = 'step-icon absolute -left-8 top-0 w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-[10px] z-10 shadow-md ring-4 ring-purple-100';
-        title.className = 'font-bold text-purple-700 text-sm';
-      } else {
-        // Futuro
-        icon.className = 'step-icon absolute -left-8 top-0 w-6 h-6 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center font-bold text-[10px] z-10';
-        title.className = 'font-bold text-slate-400';
-      }
-    }
-
-    // Checklist Summary Card
-    const ckCard = document.getElementById('publicChecklistSummary');
-    if (ckCard) {
-      const items = Object.entries(os.checklist || {});
-      if (items.length) {
-        ckCard.innerHTML = items.map(([k, v]) => {
-          const itemDef = CHECKLIST_CATALOGO.find(c => c.id === k);
-          const name = itemDef ? itemDef.name : k;
-          const isOk = v === 'OK';
-          const isWarn = v === 'Atenção';
-          return `
-            <div class="flex items-center justify-between py-1 border-b border-slate-100 text-[11px]">
-              <span class="text-slate-600">${name}</span>
-              <span class="font-bold px-1.5 py-0.5 rounded text-[10px] ${isOk ? 'bg-emerald-50 text-emerald-700' : isWarn ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-500'}">
-                ${v}
-              </span>
-            </div>
-          `;
-        }).join('');
-      } else {
-        ckCard.innerHTML = `<p class="text-slate-400 text-[11px]">Checklist não registrado.</p>`;
-      }
-    }
-
-    // Link WhatsApp
-    const btnWA = document.getElementById('btnPublicWhatsApp');
-    const storeWA = (state.config.whatsApp || '').replace(/\D/g, '');
-    if (btnWA) {
-      const waText = encodeURIComponent(`Olá! Estou acompanhando minha OS #${os.numero} (${os.modelo}) e gostaria de tirar uma dúvida.`);
-      btnWA.href = `https://wa.me/55${storeWA}?text=${waText}`;
-    }
-
-    document.getElementById('modalPublicTracking').classList.remove('hidden');
-    if (window.lucide) window.lucide.createIcons();
+    // Abre diretamente o documento oficial de Nota Fiscal / Comprovante
+    this.renderPublicNotaFiscal(os);
   },
 
   closeQuickTrackingModal() {
-    document.getElementById('modalPublicTracking').classList.add('hidden');
+    document.getElementById('modalPublicTracking')?.classList.add('hidden');
+    document.getElementById('publicNotaFiscalScreen')?.classList.add('hidden');
     state.activeTrackingOS = null;
+  },
+
+  togglePublicTrackingSection() {
+    const sec = document.getElementById('publicStatusSection');
+    if (sec) {
+      sec.classList.toggle('hidden');
+      if (!sec.classList.contains('hidden')) {
+        sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  },
+
+  closePublicNotaFiscalAndLogin() {
+    const screen = document.getElementById('publicNotaFiscalScreen');
+    if (screen) screen.classList.add('hidden');
+    window._userRequestedLogin = true;
+    authManager.showScreen('authScreen');
+  },
+
+  printPublicNotaFiscal() {
+    if (!state.activeTrackingOS) return;
+    this.printOS(state.activeTrackingOS.id);
+  },
+
+  updatePublicStatusSteps(status) {
+    const s = String(status || '').toLowerCase();
+    let active = 1;
+    if (s.includes('bancada') || s.includes('serviço') || s.includes('pecas') || s.includes('peças')) {
+      active = 2;
+    } else if (s.includes('teste') || s.includes('aguardando')) {
+      active = 3;
+    } else if (s.includes('finalizado') || s.includes('pronto') || s.includes('entregue') || s.includes('pago')) {
+      active = 4;
+    }
+
+    for (let i = 1; i <= 4; i++) {
+      const box = document.getElementById(`trackStep${i}`);
+      const icon = document.getElementById(`trackStepIcon${i}`);
+      if (!box || !icon) continue;
+
+      if (i < active) {
+        box.className = 'p-3 rounded-xl border border-emerald-200 bg-emerald-50/70 transition';
+        icon.className = 'w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto mb-1.5 font-bold text-xs shadow-sm';
+      } else if (i === active) {
+        box.className = 'p-3 rounded-xl border border-purple-300 bg-purple-50 ring-2 ring-purple-100 transition';
+        icon.className = 'w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center mx-auto mb-1.5 font-black text-xs shadow-md';
+      } else {
+        box.className = 'p-3 rounded-xl border border-slate-200 bg-slate-50 transition opacity-60';
+        icon.className = 'w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto mb-1.5 font-bold text-xs';
+      }
+    }
+  },
+
+  formatChecklistTexto(os) {
+    const ck = os.checklist || os.checklist_checkin?.itens || {};
+    const labels = {
+      display: 'Tela / Touch', camera: 'Câmeras', audio: 'Áudio / Mic', carga: 'Conector Carga',
+      conexoes: 'Wi-Fi / Sinal', botoes: 'Botões', biometria: 'Biometria / FaceID', bateria: 'Bateria',
+      carcaca: 'Carcaça / Vidro', proximidade: 'Sensor Proximidade'
+    };
+    const ok = [];
+    const warn = [];
+    Object.entries(ck).forEach(([k, v]) => {
+      const name = labels[k] || k;
+      if (v === 'OK' || v === 'sem_defeito') ok.push(name);
+      else if (v === 'Atenção' || v === 'defeito') warn.push(name);
+    });
+    const parts = [];
+    if (ok.length) parts.push('Componentes OK: ' + ok.join(', '));
+    if (warn.length) parts.push('Com Atenção / Defeito: ' + warn.join(', '));
+    return parts.length ? parts.join(' | ') : 'Checklist padrão verificado na entrada.';
+  },
+
+  downloadOSPDF(osOrId) {
+    let os = typeof osOrId === 'object' && osOrId !== null ? osOrId : null;
+    if (!os && typeof osOrId === 'string' && osOrId) {
+      const clean = osOrId.trim().replace(/^#/, '').toLowerCase();
+      os = (state.orders || []).find(o => 
+        String(o.id || '').toLowerCase() === clean || 
+        String(o.numero || '').toLowerCase() === clean
+      );
+    }
+    if (!os && state.activeTrackingOS) {
+      os = state.activeTrackingOS;
+    }
+    if (!os && state.orders && state.orders.length) {
+      os = state.orders[0];
+    }
+    if (!os) {
+      alert('Ordem de Serviço não localizada para gerar o PDF.');
+      return;
+    }
+
+    try {
+      const JsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : window.jsPDF;
+      if (!JsPDF) {
+        // Fallback para impressão/salvar como PDF nativo do navegador caso o script CDN jsPDF não esteja carregado
+        this.printOS(os.id);
+        return;
+      }
+
+      const p = new JsPDF({ unit: 'mm', format: 'a4' });
+      let y = 49;
+
+      const text = (s, size = 10, bold = false) => {
+        p.setFont('helvetica', bold ? 'bold' : 'normal');
+        p.setFontSize(size);
+        const lines = p.splitTextToSize(String(s || '—'), 174);
+        for (let line of lines) {
+          if (y > 261) {
+            p.addPage();
+            y = 22;
+          }
+          p.text(line, 18, y);
+          y += size * 0.46 + 2;
+        }
+      };
+
+      const section = s => {
+        y += 3;
+        p.setDrawColor(0, 145, 198);
+        p.setLineWidth(0.6);
+        p.line(18, y, 192, y);
+        y += 8;
+        text(s, 11, true);
+      };
+
+      // Faixa Superior / Cabeçalho Escuro Oficial da CH Cell
+      p.setFillColor(8, 38, 58); // #08263a
+      p.rect(0, 0, 210, 38, 'F');
+      p.setTextColor(255, 255, 255);
+      p.setFont('helvetica', 'bold');
+      p.setFontSize(20);
+      p.text(state.config.storeName || 'CH CELL', 18, 18);
+      p.setFontSize(9);
+      p.setFont('helvetica', 'normal');
+      p.text('ASSISTÊNCIA TÉCNICA ESPECIALIZADA', 18, 25);
+      p.text(`${state.config.address || 'Matriz'} • WhatsApp: ${state.config.whatsApp || ''}`, 18, 31);
+
+      p.setFont('helvetica', 'bold');
+      p.setFontSize(13);
+      p.text(`ORDEM DE SERVIÇO #${String(os.numero || '').toUpperCase()}`, 125, 20);
+      p.setFontSize(9);
+      p.setFont('helvetica', 'normal');
+      p.text(`Entrada: ${os.data_entrada || new Date().toISOString().slice(0, 10)}`, 125, 26);
+      p.text(`Status: ${os.status || 'Em Aberto'}`, 125, 31);
+
+      p.setTextColor(23, 42, 53);
+
+      // 1. DADOS DO CLIENTE
+      section('DADOS DO CLIENTE');
+      text(`Nome: ${os.cliente_nome || 'Consumidor Final'}`);
+      text(`WhatsApp / Telefone: ${os.cliente_celular || 'Não informado'}`);
+
+      // 2. APARELHO E DEFEITO
+      section('APARELHO E DEFEITO REPORTADO');
+      text(`Marca / Modelo: ${[os.marca, os.modelo].filter(Boolean).join(' ') || 'Não especificado'}`);
+      text(`Cor: ${os.cor || '—'}    |    Senha / Padrão: ${os.senha || 'Não informada'}`);
+      text(`Defeito Relatado: ${os.defeito_relatado || 'Não especificado'}`);
+
+      // 3. CHECKLIST DE ENTRADA
+      section('CHECKLIST DE ENTRADA E CONFERÊNCIA');
+      const ckResumo = this.formatChecklistTexto(os);
+      text(ckResumo, 9);
+      if (os.checklist_obs) {
+        text(`Observações de Avarias: ${os.checklist_obs}`, 9);
+      }
+
+      // 4. SERVIÇO E VALORES
+      section('SERVIÇO AUTORIZADO E VALORES');
+      text(`Serviço Autorizado: ${os.servico || 'Diagnóstico e reparo técnico'}`);
+      text(`Previsão de Conclusão: ${os.previsao_entrega || 'A combinar'}`);
+      text(`Valor Total do Serviço: ${state.formatMoney(os.valor || 0)}`);
+      text(`Valor Pago (Sinal): ${state.formatMoney(os.valor_pago || 0)}`);
+      const pendente = Math.max(0, (Number(os.valor) || 0) - (Number(os.valor_pago) || 0));
+      text(`SALDO A PAGAR: ${state.formatMoney(pendente)}`, 10, true);
+
+      // 5. GARANTIA
+      section('GARANTIA E CONDIÇÕES');
+      text(state.config.warranty || 'Garantia legal de 90 dias referente ao serviço executado e peças substituídas, conforme o Art. 26 do Código de Defesa do Consumidor (Lei 8.078/1990). A garantia não cobre danos por quedas, impacto, telas trincadas ou oxidação por líquidos.', 8.5);
+
+      // 6. DECLARAÇÃO E ASSINATURA
+      if (y > 195) { p.addPage(); y = 30; }
+      section('DECLARAÇÃO DE RECEBIMENTO E CONFERÊNCIA');
+      text('Declaro que as condições do aparelho e o checklist de entrada registrados nesta Ordem de Serviço foram apresentados para minha conferência. Minha assinatura confirma que recebi estas informações no momento da entrada do aparelho.', 8);
+
+      y += 8;
+      if (y > 235) { p.addPage(); y = 35; }
+      p.setDrawColor(60, 75, 85);
+      p.setLineWidth(0.4);
+      p.line(20, y + 13, 115, y + 13);
+      p.line(132, y + 13, 190, y + 13);
+      p.setFont('helvetica', 'normal');
+      p.setFontSize(8);
+      p.text('Assinatura do Cliente', 43, y + 18);
+      p.text('Data: ____/____/________', 138, y + 18);
+
+      y += 24;
+      if (y > 260) { p.addPage(); y = 35; }
+      p.line(20, y + 8, 115, y + 8);
+      p.line(132, y + 8, 190, y + 8);
+      p.text(os.cliente_nome || 'Nome completo do cliente', 36, y + 13);
+      p.text(`Responsável: ${state.config.storeName}`, 135, y + 13);
+
+      // Rodapé
+      p.setTextColor(100, 110, 120);
+      p.setFontSize(8);
+      p.text(`CH Cell Pro • Comprovante oficial emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 18, 287);
+
+      const fileName = `CH-Cell-OS-${String(os.numero || 'doc').toUpperCase()}.pdf`;
+      p.save(fileName);
+    } catch (e) {
+      console.error('Erro ao gerar PDF com jsPDF:', e);
+      alert('Erro ao gerar o arquivo PDF: ' + e.message + '\n\nTentando abrir a impressão padrão do navegador...');
+      this.printOS(os.id);
+    }
+  },
+
+  renderPublicNotaFiscal(os) {
+    if (!os) return;
+    state.activeTrackingOS = os;
+
+    const screen = document.getElementById('publicNotaFiscalScreen');
+    if (!screen) return;
+
+    // Garante que a tela pública seja exibida e que telas de login fiquem ocultas
+    screen.classList.remove('hidden');
+    const authScreen = document.getElementById('authScreen');
+    if (authScreen) authScreen.classList.add('hidden');
+
+    // Popula cabeçalho
+    const storeName = state.config.storeName || 'CH CELL ASSISTÊNCIA TÉCNICA';
+    document.getElementById('pubDocStoreName').textContent = storeName;
+    document.getElementById('pubDocStoreAddr').textContent = state.config.address || 'Rua Principal, 120 - Centro';
+    document.getElementById('pubDocStorePhone').textContent = `WhatsApp / Atendimento: ${state.config.whatsApp || '(21) 98765-4321'}`;
+
+    // Popula dados da OS
+    document.getElementById('pubDocCode').textContent = `#${os.numero}`;
+    document.getElementById('pubDocDate').textContent = os.data_entrada || new Date().toISOString().slice(0, 10);
+    document.getElementById('pubDocPrevisao').textContent = os.previsao_entrega || 'A combinar';
+
+    // Popula dados do cliente e aparelho
+    document.getElementById('pubDocClientName').textContent = os.cliente_nome || 'Consumidor Final';
+    document.getElementById('pubDocClientPhone').textContent = os.cliente_celular || 'Não informado';
+    document.getElementById('pubDocDeviceModel').textContent = `${os.marca || ''} ${os.modelo || ''}`.trim() || 'Aparelho não especificado';
+    document.getElementById('pubDocDeviceColor').textContent = os.cor || '—';
+    document.getElementById('pubDocDevicePass').textContent = os.senha || '—';
+
+    // Defeito e Serviço
+    document.getElementById('pubDocDefect').textContent = os.defeito_relatado || 'Em diagnóstico técnico';
+    document.getElementById('pubDocService').textContent = os.servico || 'Diagnóstico e reparo autorizado em bancada';
+
+    // Checklist
+    const badgesContainer = document.getElementById('pubDocChecklistBadges');
+    if (badgesContainer) {
+      const ck = os.checklist || os.checklist_checkin?.itens || {};
+      const labels = {
+        display: 'Tela / Touch', camera: 'Câmeras', audio: 'Áudio / Mic', carga: 'Conector Carga',
+        conexoes: 'Wi-Fi / Rede', botoes: 'Botões', biometria: 'Biometria', bateria: 'Bateria',
+        carcaca: 'Carcaça', proximidade: 'Sensor Prox.'
+      };
+      const entries = Object.entries(ck);
+      if (entries.length) {
+        badgesContainer.innerHTML = entries.map(([k, v]) => {
+          const isOk = v === 'OK' || v === 'sem_defeito';
+          const isWarn = v === 'Atenção' || v === 'defeito';
+          const badgeClass = isOk ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 
+                             isWarn ? 'bg-amber-50 text-amber-700 border-amber-200' : 
+                             'bg-slate-100 text-slate-500 border-slate-200';
+          return `<span class="px-2 py-0.5 rounded-lg border text-[11px] font-bold ${badgeClass}">${labels[k] || k}: ${v}</span>`;
+        }).join('');
+      } else {
+        badgesContainer.innerHTML = `<span class="text-slate-400 text-[11px]">Checklist padrão de entrada verificado.</span>`;
+      }
+    }
+    const notesEl = document.getElementById('pubDocChecklistNotes');
+    if (notesEl) {
+      notesEl.textContent = os.checklist_obs || 'Sem avarias relatadas na entrada do equipamento.';
+    }
+
+    // Valores
+    const valTotal = Number(os.valor) || 0;
+    const valPago = Number(os.valor_pago) || 0;
+    const valSaldo = Math.max(0, valTotal - valPago);
+    document.getElementById('pubDocValTotal').textContent = state.formatMoney(valTotal);
+    document.getElementById('pubDocValPago').textContent = state.formatMoney(valPago);
+    document.getElementById('pubDocValSaldo').textContent = state.formatMoney(valSaldo);
+
+    // Termo de garantia
+    const warrEl = document.getElementById('pubDocWarrantyText');
+    if (warrEl && state.config.warranty) {
+      warrEl.textContent = state.config.warranty;
+    }
+
+    // Assinaturas
+    const signClient = document.getElementById('pubDocSignClient');
+    if (signClient) signClient.textContent = os.cliente_nome || 'Assinatura do Cliente';
+    const signStore = document.getElementById('pubDocSignStore');
+    if (signStore) signStore.textContent = storeName;
+
+    // Rodapé carimbo
+    const footerStamp = document.getElementById('pubDocFooterStamp');
+    if (footerStamp) {
+      footerStamp.textContent = `Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR').slice(0, 5)}`;
+    }
+
+    // QR Code
+    const qrContainer = document.getElementById('pubDocQrContainer');
+    if (qrContainer && window.QRCode) {
+      qrContainer.innerHTML = '';
+      const trackUrl = `${window.location.origin}${window.location.pathname}?track=${encodeURIComponent(os.numero)}`;
+      new QRCode(qrContainer, {
+        text: trackUrl,
+        width: 64,
+        height: 64
+      });
+    }
+
+    // Atualiza status do rastreio ao vivo
+    const liveBadge = document.getElementById('pubLiveStatusBadge');
+    if (liveBadge) liveBadge.textContent = os.status || 'Em Aberto';
+    this.updatePublicStatusSteps(os.status);
+
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  async handlePublicClientRouting() {
+    const params = new URLSearchParams(window.location.search);
+    const trackCode = params.get('track') || params.get('pdf') || params.get('os');
+    const docData = params.get('doc');
+    const autoDownload = params.get('download') === '1' || params.has('download');
+
+    if (!trackCode && !docData) return false;
+
+    // Oculta telas de autenticação e navegação interna para focar no documento do cliente
+    const authScreen = document.getElementById('authScreen');
+    if (authScreen) authScreen.classList.add('hidden');
+    const acessoBloq = document.getElementById('acessoBloqueadoScreen');
+    if (acessoBloq) acessoBloq.classList.add('hidden');
+
+    // 1. Tenta decodificar direto do parâmetro doc (se presente)
+    let resolvedOS = null;
+    if (docData) {
+      try {
+        const decodedStr = decodeURIComponent(escape(atob(docData)));
+        const d = JSON.parse(decodedStr);
+        if (d && (d.n || d.numero)) {
+          resolvedOS = {
+            id: 'os_' + (d.n || d.numero),
+            numero: d.n || d.numero,
+            cliente_nome: d.c || d.cliente_nome || '',
+            cliente_celular: d.f || d.cliente_celular || '',
+            marca: d.m || d.marca || '',
+            modelo: d.d || d.modelo || '',
+            cor: d.k || d.cor || '',
+            senha: d.s || d.senha || '',
+            defeito_relatado: d.r || d.defeito_relatado || '',
+            servico: d.v || d.servico || '',
+            status: d.t || d.status || 'Em Serviço',
+            valor: parseFloat(d.p || d.valor) || 0,
+            valor_pago: parseFloat(d.pg || d.valor_pago) || 0,
+            data_entrada: d.e || d.data_entrada || new Date().toISOString().slice(0, 10),
+            previsao_entrega: d.pr || d.previsao_entrega || '',
+            checklist: d.ck || {},
+            checklist_obs: d.co || ''
+          };
+        }
+      } catch (e) {
+        console.warn('Falha ao decodificar docData:', e);
+      }
+    }
+
+    // 2. Se não encontrou pelo docData, busca em state.orders
+    if (!resolvedOS && trackCode) {
+      resolvedOS = state.orders.find(o => 
+        (o.numero && o.numero.toLowerCase() === trackCode.toLowerCase()) || 
+        (o.id && o.id.toLowerCase() === trackCode.toLowerCase())
+      );
+    }
+
+    // 3. Se ainda não encontrou, tenta buscar do /api/sync
+    if (!resolvedOS && trackCode) {
+      try {
+        const res = await fetch('/api/sync');
+        if (res.ok) {
+          const syncData = await res.json();
+          if (Array.isArray(syncData.orders)) {
+            resolvedOS = syncData.orders.find(o => 
+              (o.numero && o.numero.toLowerCase() === trackCode.toLowerCase()) || 
+              (o.id && o.id.toLowerCase() === trackCode.toLowerCase())
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao consultar /api/sync para tracking:', e);
+      }
+    }
+
+    // 4. Se ainda não encontrou e temos Supabase disponível, busca no banco
+    if (!resolvedOS && trackCode && db) {
+      try {
+        const { data: dbOS } = await db.from('ordens_servico')
+          .select('*')
+          .or(`numero.ilike.${trackCode},id.eq.${trackCode}`)
+          .limit(1)
+          .maybeSingle();
+
+        if (dbOS) {
+          resolvedOS = {
+            ...dbOS,
+            numero: dbOS.numero || String(dbOS.id).slice(0, 5).toUpperCase(),
+            checklist: dbOS.checklist_checkin?.itens || dbOS.checklist || {},
+            checklist_obs: dbOS.checklist_checkin?.observacoes || dbOS.checklist_obs || '',
+            fotos: Array.isArray(dbOS.fotos_checkin) ? dbOS.fotos_checkin : []
+          };
+        }
+      } catch (e) {
+        console.warn('Erro ao consultar Supabase para tracking:', e);
+      }
+    }
+
+    // Renderiza a tela oficial de Nota Fiscal / Comprovante
+    if (resolvedOS) {
+      this.renderPublicNotaFiscal(resolvedOS);
+      if (autoDownload) {
+        setTimeout(() => this.downloadOSPDF(resolvedOS), 600);
+      }
+      return true;
+    }
+
+    return false;
   },
 
   startTrackingTicker() {
@@ -1658,17 +2077,20 @@ Qualquer dúvida estamos à disposição!`;
             </div>
 
             <!-- Action buttons -->
-            <div class="grid grid-cols-4 gap-1.5 pt-1">
-              <button onclick="app.sendWhatsApp('${os.id}')" title="Enviar no WhatsApp" class="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl text-xs flex items-center justify-center transition">
+            <div class="grid grid-cols-5 gap-1.5 pt-1">
+              <button onclick="app.sendWhatsApp('${os.id}')" title="Enviar no WhatsApp" class="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl text-xs flex items-center justify-center transition cursor-pointer">
                 <i data-lucide="message-circle" class="w-4 h-4"></i>
               </button>
-              <button onclick="app.openPublicTracking('${os.id}')" title="Ver Link do Reparo" class="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl text-xs flex items-center justify-center transition">
+              <button onclick="app.openPublicTracking('${os.id}')" title="Ver Nota Fiscal / Rastreio" class="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl text-xs flex items-center justify-center transition cursor-pointer">
                 <i data-lucide="external-link" class="w-4 h-4"></i>
               </button>
-              <button onclick="app.printOS('${os.id}')" title="Imprimir OS / Etiqueta" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center transition">
+              <button onclick="app.downloadOSPDF('${os.id}')" title="Baixar PDF A4 (Nota Fiscal)" class="p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-xs flex items-center justify-center transition cursor-pointer">
+                <i data-lucide="file-text" class="w-4 h-4"></i>
+              </button>
+              <button onclick="app.printOS('${os.id}')" title="Imprimir OS / Etiqueta" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center justify-center transition cursor-pointer">
                 <i data-lucide="printer" class="w-4 h-4"></i>
               </button>
-              <button onclick="app.editOS('${os.id}')" title="Editar OS" class="p-2 bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold rounded-xl text-xs flex items-center justify-center transition">
+              <button onclick="app.editOS('${os.id}')" title="Editar OS" class="p-2 bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold rounded-xl text-xs flex items-center justify-center transition cursor-pointer">
                 <i data-lucide="pencil" class="w-4 h-4"></i>
               </button>
             </div>
@@ -2995,7 +3417,13 @@ const authManager = {
       await this.checkSession(session);
     } catch (err) {
       console.warn('Erro ou timeout ao verificar sessão Supabase:', err);
-      this.showScreen('authScreen');
+      const isPublic = new URLSearchParams(window.location.search).has('track') || 
+                       new URLSearchParams(window.location.search).has('pdf') || 
+                       new URLSearchParams(window.location.search).has('os') ||
+                       new URLSearchParams(window.location.search).has('doc');
+      if (!isPublic || window._userRequestedLogin) {
+        this.showScreen('authScreen');
+      }
     }
   },
 
@@ -3016,6 +3444,15 @@ const authManager = {
   },
 
   async checkSession(session) {
+    const isPublic = new URLSearchParams(window.location.search).has('track') || 
+                     new URLSearchParams(window.location.search).has('pdf') || 
+                     new URLSearchParams(window.location.search).has('os') ||
+                     new URLSearchParams(window.location.search).has('doc');
+    if (isPublic && !window._userRequestedLogin) {
+      this.hideAllAuthScreens();
+      return;
+    }
+
     if (!session || !session.user) {
       this.showScreen('authScreen');
       return;
@@ -3106,6 +3543,15 @@ const authManager = {
   },
 
   showScreen(id) {
+    const isPublic = new URLSearchParams(window.location.search).has('track') || 
+                     new URLSearchParams(window.location.search).has('pdf') || 
+                     new URLSearchParams(window.location.search).has('os') ||
+                     new URLSearchParams(window.location.search).has('doc');
+    if (isPublic && !window._userRequestedLogin) {
+      this.hideAllAuthScreens();
+      return;
+    }
+
     ['authScreen', 'primeiroAcessoScreen', 'acessoBloqueadoScreen', 'recuperarAcessoScreen'].forEach(s => {
       const el = document.getElementById(s);
       if (el) {
