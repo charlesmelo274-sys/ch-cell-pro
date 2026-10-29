@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v8-ozeas-auth';
+const CACHE_NAME = 'chcell-pro-v9-fix-updated-at';
 const ASSETS = [
   './',
   './index.html',

@@ -4012,8 +4012,7 @@ const authManager = {
             nome: func.nome,
             email: func.email,
             funcao: func.funcao || 'Gerente',
-            ativo: true,
-            updated_at: new Date().toISOString()
+            ativo: true
           }, { onConflict: 'email' });
         } catch (e) {
           console.warn('Supabase funcionarios upsert aviso:', e);
@@ -4631,8 +4630,7 @@ const equipeManager = {
           nome: func.nome,
           email: email,
           funcao: func.funcao || 'Gerente',
-          ativo: true,
-          updated_at: new Date().toISOString()
+          ativo: true
         }, { onConflict: 'email' });
       } catch (e) {
         console.warn('Supabase funcionarios upsert:', e);
@@ -4715,7 +4713,7 @@ const equipeManager = {
 
     if (!nome) return alert('Informe o nome do funcionário.');
 
-    const payload = { nome, email, telefone, funcao, ativo, observacoes, updated_at: new Date().toISOString() };
+    const payload = { nome, email, telefone, funcao, ativo, observacoes };
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
     let supabaseStatus = { attempted: false, success: false, rlsBlocked: false, error: null };
