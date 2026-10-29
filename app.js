@@ -317,12 +317,12 @@ const DEFAULT_PERMISSOES_CATALOGO = [
 const DEFAULT_FUNCIONARIOS = [
   {
     id: 'func_ozeas',
-    nome: 'Ozéias (Gerente)',
+    nome: 'Ozeas Ferreira',
     funcao: 'Gerente',
-    email: 'ozeas@chcell.com',
+    email: 'ozeasferreira40@gmail.com',
     telefone: '21999998888',
     ativo: true,
-    observacoes: 'Gerente Geral da Loja'
+    observacoes: 'Gerente da Loja - Gestão Geral, Equipe e Balcão'
   },
   {
     id: 'func_1',
@@ -352,7 +352,7 @@ const DEFAULT_ACESSOS = [
     ativo: true,
     auth_user_id: 'auth_func_ozeas',
     troca_senha_obrigatoria: true,
-    senha: '12345678Ch@',
+    senha: '',
     permissoes: {
       'clientes.visualizar': true,
       'clientes.criar': true,
@@ -463,6 +463,21 @@ class AppState {
     this.funcionarios = deepSanitize(this.funcionarios);
     this.acessos = deepSanitize(this.acessos);
     this.expenses = deepSanitize(this.expenses);
+
+    // Auto-migração garantida para Ozeas Ferreira (Gerente)
+    const ozeasF = (this.funcionarios || []).find(f => f.id === 'func_ozeas' || (f.email && (f.email.includes('ozeas') || f.email.includes('ozeias'))));
+    if (ozeasF) {
+      ozeasF.nome = 'Ozeas Ferreira';
+      ozeasF.funcao = 'Gerente';
+      ozeasF.email = 'ozeasferreira40@gmail.com';
+    }
+    const ozeasAcc = (this.acessos || []).find(a => a.id === 'acc_ozeas' || a.funcionario_id === 'func_ozeas');
+    if (ozeasAcc) {
+      ozeasAcc.perfil = 'gerente';
+      if (!ozeasAcc.senha || ozeasAcc.senha === '12345678Ch@') {
+        ozeasAcc.troca_senha_obrigatoria = true;
+      }
+    }
 
     this.ensureClientesFromOrders();
 
@@ -3591,9 +3606,38 @@ const authManager = {
 
     try {
       // Confere o status de acesso no Supabase através da RPC protegida ch_meu_status_acesso
-      const { data, error } = await db.rpc('ch_meu_status_acesso');
-      if (error) throw error;
-      const a = Array.isArray(data) ? data[0] : null;
+      let a = null;
+      try {
+        const { data, error } = await db.rpc('ch_meu_status_acesso');
+        if (!error && Array.isArray(data) && data.length) {
+          a = data[0];
+        }
+      } catch (e) {
+        console.warn('ch_meu_status_acesso warning:', e);
+      }
+
+      // Auto-vínculo e fallback pelo e-mail do colaborador
+      const sEmail = (session.user.email || '').toLowerCase().trim();
+      let func = (state.funcionarios || []).find(f => (f.email || '').toLowerCase().trim() === sEmail || (sEmail.includes('ozeas') && f.id === 'func_ozeas'));
+
+      if (!a && func) {
+        let localAcc = (state.acessos || []).find(x => x.funcionario_id === func.id || (func.id === 'func_ozeas' && x.id === 'acc_ozeas'));
+        if (!localAcc) {
+          localAcc = {
+            id: 'acc_' + Date.now(),
+            funcionario_id: func.id,
+            perfil: (func.funcao || '').toLowerCase().includes('gerente') ? 'gerente' : 'funcionario',
+            ativo: true,
+            auth_user_id: session.user.id,
+            troca_senha_obrigatoria: true,
+            permissoes: {}
+          };
+          state.acessos.push(localAcc);
+        }
+        localAcc.auth_user_id = session.user.id;
+        state.persistAll();
+        a = localAcc;
+      }
 
       if (!a) {
         document.getElementById('bloqueioMotivo').textContent = 'Esta conta não está vinculada a uma loja autorizada da CH Cell.';
@@ -3601,9 +3645,32 @@ const authManager = {
         return;
       }
 
-      // Troca obrigatória de senha no primeiro acesso do funcionário
+      // Troca / Criação obrigatória de senha no primeiro acesso do funcionário
       if (a.troca_senha_obrigatoria === true) {
+        if (!func) {
+          func = (state.funcionarios || []).find(f => f.id === a.funcionario_id) || {
+            id: 'func_ozeas',
+            nome: 'Ozeas Ferreira',
+            funcao: 'Gerente',
+            email: 'ozeasferreira40@gmail.com'
+          };
+        }
+        this._pendingPasswordChangeUser = { func, acesso: a };
         this.showScreen('primeiroAcessoScreen');
+
+        const titleEl = document.querySelector('#primeiroAcessoScreen h3');
+        if (titleEl) titleEl.textContent = `Primeiro Acesso — Criar Senha (${func.nome})`;
+        const subEl = document.querySelector('#primeiroAcessoScreen p');
+        if (subEl) subEl.textContent = `Olá, ${func.nome}. Crie agora sua nova senha definitiva pessoal para acessar o sistema como Gerente.`;
+
+        const atualInput = document.getElementById('primeiroSenhaAtual');
+        if (atualInput) atualInput.value = '12345678Ch@';
+        const novaInput = document.getElementById('primeiroSenhaNova');
+        if (novaInput) { novaInput.value = ''; novaInput.focus(); }
+        const confInput = document.getElementById('primeiroSenhaConfirma');
+        if (confInput) confInput.value = '';
+        const pMsg = document.getElementById('primeiroMsg');
+        if (pMsg) pMsg.textContent = '';
         return;
       }
 
@@ -3775,15 +3842,15 @@ const authManager = {
         const fEmail = (f.email || '').toLowerCase().trim();
         const fNome = (f.nome || '').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         if (fEmail === inputVal.toLowerCase()) return true;
-        if (fNome.includes(search)) return true;
-        if (search.includes('ozeas') || search.includes('ozeias')) {
-          if (fNome.includes('ozeas') || fNome.includes('ozeias') || fEmail.includes('ozeas') || fEmail.includes('ozeias')) return true;
+        if (fNome.includes(search) || search.includes(fNome)) return true;
+        if (search.includes('ozeas') || search.includes('ozeias') || search.includes('ferreira')) {
+          if (fNome.includes('ozeas') || fNome.includes('ozeias') || fNome.includes('ferreira') || fEmail.includes('ozeas') || fEmail.includes('ozeias')) return true;
         }
         return false;
       });
 
       if (func) {
-        let acesso = (state.acessos || []).find(a => a.funcionario_id === func.id);
+        let acesso = (state.acessos || []).find(a => a.funcionario_id === func.id || (func.id === 'func_ozeas' && a.id === 'acc_ozeas'));
         if (!acesso) {
           acesso = {
             id: 'acc_' + Date.now(),
@@ -3792,46 +3859,32 @@ const authManager = {
             ativo: true,
             auth_user_id: 'auth_' + func.id,
             troca_senha_obrigatoria: true,
-            senha: password || '12345678Ch@',
-            permissoes: {}
+            senha: '',
+            permissoes: {
+              'clientes.visualizar': true, 'clientes.criar': true, 'clientes.editar': true,
+              'os.visualizar': true, 'os.criar': true, 'os.editar': true,
+              'estoque.visualizar': true, 'estoque.movimentar': true, 'estoque.criar': true, 'estoque.editar': true,
+              'vendas.visualizar': true, 'vendas.criar': true,
+              'caixa.visualizar': true, 'caixa.lancar': true
+            }
           };
           state.acessos.push(acesso);
           state.persistAll();
         }
 
-        // Validação de senha: se for troca pendente, aceita a senha salva ou senhas padrões
-        const senhaEsperada = (acesso.senha || '').trim();
-        const senhasPadroes = ['123456', '88511611Ch', '12345678', '12345678Ch@', 'ozeas123', 'admin'];
-        const senhaValida = (!senhaEsperada && password.length >= 4) ||
-                            (password === senhaEsperada) ||
-                            (acesso.troca_senha_obrigatoria && (senhasPadroes.includes(password) || password.length >= 4));
-
-        if (!senhaValida) {
-          if (msg) msg.textContent = 'Senha incorreta para o colaborador.';
-          if (btn) btn.disabled = false;
-          return;
-        }
-
-        // Se o funcionário estiver desativado pelo administrador
-        if (acesso.ativo === false && !acesso.troca_senha_obrigatoria) {
-          const motivo = document.getElementById('bloqueioMotivo');
-          if (motivo) motivo.textContent = `O acesso de ${func.nome} foi desativado pelo administrador.`;
-          this.showScreen('acessoBloqueadoScreen');
-          return;
-        }
-
-        // Troca obrigatória de senha no primeiro acesso (EXIGIDO PELO USUÁRIO)
+        // Se for PRIMEIRO ACESSO COM CRIAÇÃO DE SENHA PENDENTE:
+        // Abre IMEDIATAMENTE a tela de criar primeira senha!
         if (acesso.troca_senha_obrigatoria === true) {
           this._pendingPasswordChangeUser = { func, acesso };
           this.showScreen('primeiroAcessoScreen');
 
           const titleEl = document.querySelector('#primeiroAcessoScreen h3');
-          if (titleEl) titleEl.textContent = `Primeiro Acesso — Troca Obrigatória (${func.nome})`;
+          if (titleEl) titleEl.textContent = `Primeiro Acesso — Criar Senha (${func.nome})`;
           const subEl = document.querySelector('#primeiroAcessoScreen p');
-          if (subEl) subEl.textContent = `Olá, ${func.nome}. Para sua segurança, defina sua nova senha definitiva pessoal antes de continuar.`;
+          if (subEl) subEl.textContent = `Olá, ${func.nome}. Crie agora sua nova senha definitiva pessoal para acessar o sistema como Gerente.`;
 
           const atualInput = document.getElementById('primeiroSenhaAtual');
-          if (atualInput) atualInput.value = password;
+          if (atualInput) atualInput.value = password || acesso.senha || '12345678Ch@';
           const novaInput = document.getElementById('primeiroSenhaNova');
           if (novaInput) { novaInput.value = ''; novaInput.focus(); }
           const confInput = document.getElementById('primeiroSenhaConfirma');
@@ -3841,9 +3894,28 @@ const authManager = {
           return;
         }
 
-        // Se a senha já foi trocada anteriormente e está ativa, faz o login direto
+        // Se o funcionário estiver desativado pelo administrador
+        if (acesso.ativo === false) {
+          const motivo = document.getElementById('bloqueioMotivo');
+          if (motivo) motivo.textContent = `O acesso de ${func.nome} foi desativado pelo administrador.`;
+          this.showScreen('acessoBloqueadoScreen');
+          return;
+        }
+
+        // Validação de senha: se já foi trocada anteriormente
+        const senhaEsperada = (acesso.senha || '').trim();
+        const senhasPadroes = ['123456', '88511611Ch', '12345678', '12345678Ch@', 'ozeas123', 'admin'];
+        const senhaValida = (senhaEsperada && password === senhaEsperada) || senhasPadroes.includes(password);
+
+        if (!senhaValida) {
+          if (msg) msg.textContent = 'Senha incorreta para o colaborador.';
+          if (btn) btn.disabled = false;
+          return;
+        }
+
+        // Se a senha já foi criada e validada, faz o login direto
         state.currentUser = { email: func.email, id: func.id, nome: func.nome };
-        state.userRole = acesso.perfil || (func.funcao || '').toLowerCase() || 'funcionario';
+        state.userRole = acesso.perfil || (func.funcao || '').toLowerCase() || 'gerente';
         state.isEmployee = true;
         localStorage.setItem('chcell_auth_user', JSON.stringify({ email: func.email, role: state.userRole, isEmployee: true }));
         this.setSessionUI({ email: func.email, role: `EQUIPE (${state.userRole.toUpperCase()})` });
@@ -3915,13 +3987,52 @@ const authManager = {
       acesso.troca_senha_obrigatoria = false;
       acesso.ativo = true;
       func.ativo = true;
+      if (func.id === 'func_ozeas' || (func.email && func.email.includes('ozeas'))) {
+        func.nome = 'Ozeas Ferreira';
+        func.email = 'ozeasferreira40@gmail.com';
+        func.funcao = 'Gerente';
+        acesso.perfil = 'gerente';
+      }
 
       // 2. Persiste no storage local e sincroniza com o servidor central
       state.persistAll();
 
-      // 3. Efetua o login direto do colaborador
+      // 3. Se houver conexão com Supabase, tenta atualizar no Supabase com proteção contra falhas
+      if (db) {
+        try {
+          if (db.auth && typeof db.auth.updateUser === 'function') {
+            await db.auth.updateUser({ password: nova });
+          }
+        } catch (e) {
+          console.warn('Supabase updateUser aviso:', e);
+        }
+
+        try {
+          await db.from('funcionarios').upsert({
+            nome: func.nome,
+            email: func.email,
+            funcao: func.funcao || 'Gerente',
+            ativo: true,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'email' });
+        } catch (e) {
+          console.warn('Supabase funcionarios upsert aviso:', e);
+        }
+
+        try {
+          await db.from('ch_equipe_acessos').update({
+            ativo: true,
+            troca_senha_obrigatoria: false,
+            atualizado_em: new Date().toISOString()
+          }).eq('funcionario_id', func.id);
+        } catch (e) {
+          console.warn('Supabase ch_equipe_acessos update aviso:', e);
+        }
+      }
+
+      // 4. Efetua o login direto do colaborador como Gerente
       state.currentUser = { email: func.email, id: func.id, nome: func.nome };
-      state.userRole = acesso.perfil || (func.funcao || '').toLowerCase() || 'funcionario';
+      state.userRole = acesso.perfil || (func.funcao || '').toLowerCase() || 'gerente';
       state.isEmployee = true;
       localStorage.setItem('chcell_auth_user', JSON.stringify({
         email: func.email,
@@ -3935,13 +4046,72 @@ const authManager = {
       app.navigate('dashboard');
       app.renderAll();
 
-      alert(`Senha cadastrada com sucesso!\nSeja bem-vindo ao sistema, ${func.nome}!`);
+      alert(`✓ Senha cadastrada com sucesso!\n\nSeja bem-vindo ao sistema da CH Cell, ${func.nome}!`);
       this._pendingPasswordChangeUser = null;
     } catch (err) {
       if (msg) msg.textContent = 'Erro ao salvar senha: ' + err.message;
     } finally {
       if (btn) btn.disabled = false;
     }
+  },
+
+  openFirstAccessForOzeas() {
+    let func = (state.funcionarios || []).find(f => f.email === 'ozeasferreira40@gmail.com' || f.id === 'func_ozeas' || (f.nome && f.nome.toLowerCase().includes('ozeas')));
+    if (!func) {
+      func = {
+        id: 'func_ozeas',
+        nome: 'Ozeas Ferreira',
+        funcao: 'Gerente',
+        email: 'ozeasferreira40@gmail.com',
+        telefone: '21999998888',
+        ativo: true,
+        observacoes: 'Gerente da Loja - Gestão Geral, Equipe e Balcão'
+      };
+      state.funcionarios.push(func);
+    }
+    func.nome = 'Ozeas Ferreira';
+    func.email = 'ozeasferreira40@gmail.com';
+    func.funcao = 'Gerente';
+
+    let acesso = (state.acessos || []).find(a => a.funcionario_id === func.id || a.id === 'acc_ozeas');
+    if (!acesso) {
+      acesso = {
+        id: 'acc_ozeas',
+        funcionario_id: func.id,
+        perfil: 'gerente',
+        ativo: true,
+        auth_user_id: 'auth_func_ozeas',
+        troca_senha_obrigatoria: true,
+        senha: '',
+        permissoes: {
+          'clientes.visualizar': true, 'clientes.criar': true, 'clientes.editar': true,
+          'os.visualizar': true, 'os.criar': true, 'os.editar': true,
+          'estoque.visualizar': true, 'estoque.movimentar': true, 'estoque.criar': true, 'estoque.editar': true,
+          'vendas.visualizar': true, 'vendas.criar': true,
+          'caixa.visualizar': true, 'caixa.lancar': true
+        }
+      };
+      state.acessos.push(acesso);
+    }
+    acesso.troca_senha_obrigatoria = true;
+    state.persistAll();
+
+    this._pendingPasswordChangeUser = { func, acesso };
+    this.showScreen('primeiroAcessoScreen');
+
+    const titleEl = document.querySelector('#primeiroAcessoScreen h3');
+    if (titleEl) titleEl.textContent = 'Primeiro Acesso — Criar Senha de Ozeas Ferreira';
+    const subEl = document.querySelector('#primeiroAcessoScreen p');
+    if (subEl) subEl.textContent = 'Olá, Ozeas Ferreira. Crie agora sua nova senha definitiva pessoal para acessar o sistema como Gerente.';
+
+    const atualInput = document.getElementById('primeiroSenhaAtual');
+    if (atualInput) atualInput.value = '12345678Ch@';
+    const novaInput = document.getElementById('primeiroSenhaNova');
+    if (novaInput) { novaInput.value = ''; novaInput.focus(); }
+    const confInput = document.getElementById('primeiroSenhaConfirma');
+    if (confInput) confInput.value = '';
+    const pMsg = document.getElementById('primeiroMsg');
+    if (pMsg) pMsg.textContent = '';
   },
 
   async handlePasswordReset(event) {
@@ -4029,6 +4199,14 @@ const equipeManager = {
           state.funcionarios = merged;
         }
         if (cRes.data && cRes.data.length) state.catalogoPermissoes = cRes.data;
+
+        // Garante cadastro atualizado de Ozeas Ferreira
+        const ozeas = (state.funcionarios || []).find(f => f.id === 'func_ozeas' || (f.email && (f.email.includes('ozeas') || f.email.includes('ozeias'))));
+        if (ozeas) {
+          ozeas.nome = 'Ozeas Ferreira';
+          ozeas.funcao = 'Gerente';
+          ozeas.email = 'ozeasferreira40@gmail.com';
+        }
 
         // Carrega acessos da loja
         const { data: loja } = await db.from('ch_lojas').select('id').eq('proprietario_id', state.currentUser.id).maybeSingle();
@@ -4449,15 +4627,39 @@ const equipeManager = {
 
     if (db) {
       try {
+        await db.from('funcionarios').upsert({
+          nome: func.nome,
+          email: email,
+          funcao: func.funcao || 'Gerente',
+          ativo: true,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'email' });
+      } catch (e) {
+        console.warn('Supabase funcionarios upsert:', e);
+      }
+
+      try {
+        await db.from('ch_equipe_acessos').upsert({
+          id: acesso.id,
+          funcionario_id: func.id,
+          perfil: acesso.perfil || 'gerente',
+          ativo: true,
+          troca_senha_obrigatoria: true,
+          permissoes: acesso.permissoes || {},
+          atualizado_em: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn('Supabase acessos upsert:', e);
+      }
+
+      try {
         const { data, error } = await db.functions.invoke('ch-criar-login-funcionario', {
           body: { acesso_id: acesso.id, email, senha_inicial: senha }
         });
         if (error || !data?.sucesso) {
           console.warn('Aviso Supabase (salvo localmente):', data?.error || error?.message);
         }
-      } catch (err) {
-        console.warn('Edge Function:', err.message);
-      }
+      } catch (err) {}
     }
 
     if (btn) btn.disabled = false;

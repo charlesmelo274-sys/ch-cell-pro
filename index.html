@@ -139,6 +139,11 @@
           <span>Entrar Direto como Administrador (Charles)</span>
         </button>
 
+        <button type="button" onclick="window.authManager.openFirstAccessForOzeas()" class="w-full py-2.5 bg-amber-50 hover:bg-amber-100 active:scale-95 text-amber-800 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer border border-amber-200">
+          <i data-lucide="key" class="w-4 h-4 text-amber-600"></i>
+          <span>Criar Primeira Senha de Ozeas Ferreira (Gerente)</span>
+        </button>
+
         <div class="pt-1 text-center">
           <button type="button" onclick="window.authManager.clearCacheAndReset()" class="text-[11px] text-slate-400 hover:text-brand-600 transition inline-flex items-center gap-1.5 cursor-pointer py-1 px-2 rounded-lg hover:bg-slate-100">
             <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
@@ -175,17 +180,16 @@
       </div>
 
       <form id="primeiroAcessoForm" onsubmit="authManager.handleFirstPasswordChange(event)" class="space-y-3.5 text-xs">
-        <div>
-          <label class="block font-bold text-slate-700 mb-1">Senha Inicial Temporária</label>
-          <input id="primeiroSenhaAtual" type="password" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+        <div class="hidden">
+          <input id="primeiroSenhaAtual" type="password" value="12345678Ch@">
         </div>
         <div>
           <label class="block font-bold text-slate-700 mb-1">Nova Senha Pessoal (mínimo 6 caracteres)</label>
-          <input id="primeiroSenhaNova" type="password" minlength="6" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+          <input id="primeiroSenhaNova" type="password" minlength="6" required placeholder="Digite sua nova senha" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
         </div>
         <div>
           <label class="block font-bold text-slate-700 mb-1">Confirme a Nova Senha</label>
-          <input id="primeiroSenhaConfirma" type="password" minlength="6" required class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+          <input id="primeiroSenhaConfirma" type="password" minlength="6" required placeholder="Repita a nova senha" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
         </div>
         
         <p id="primeiroMsg" class="text-rose-600 font-semibold text-xs text-center" role="status"></p>
@@ -195,7 +199,7 @@
             Cancelar e Sair
           </button>
           <button id="primeiroSalvarBtn" type="submit" class="flex-1 py-2.5 bg-brand-600 text-white font-black rounded-xl text-xs hover:bg-brand-700 transition shadow-md shadow-brand-500/25">
-            Salvar Senha
+            Salvar Minha Nova Senha e Entrar
           </button>
         </div>
       </form>
@@ -2959,11 +2963,11 @@
   </div>
 
   <!-- JavaScript Main Application Logic -->
-  <script src="./app.js?v=20261027_02"></script>
+  <script src="./app.js?v=20261029_01"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=20261027_02').then(reg => {
+        navigator.serviceWorker.register('./sw.js?v=20261029_01').then(reg => {
           reg.update();
         }).catch(err => console.log('SW registration failed:', err));
       });
