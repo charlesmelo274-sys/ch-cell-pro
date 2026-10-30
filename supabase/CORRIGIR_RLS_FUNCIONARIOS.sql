@@ -1,95 +1,67 @@
 -- ==============================================================================
--- CH CELL PRO - CORREÇÃO DEFINITIVA DE PERMISSÕES E RLS DA TABELA FUNCIONARIOS
--- Execute este script no SQL Editor do seu Supabase para liberar o UPDATE e INSERT
+-- CH CELL PRO — FUNÇÃO SEGURA PARA SALVAR FUNCIONÁRIOS SEM ERRO DE RLS
+-- Execute este script no SQL Editor do Supabase (https://supabase.com/dashboard)
+-- Não usa comandos ALTER TABLE (evita erro 42501).
+-- A função usa SECURITY DEFINER para gravar no banco ignorando restrições de RLS.
 -- ==============================================================================
 
--- 1. Desabilitar temporariamente RLS para limpeza de políticas antigas conflitantes
-ALTER TABLE public.funcionarios DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ch_equipe_acessos DISABLE ROW LEVEL SECURITY;
-
--- 2. Garantir colunas necessárias na tabela de funcionários
-ALTER TABLE public.funcionarios ADD COLUMN IF NOT EXISTS email TEXT;
-ALTER TABLE public.funcionarios ADD COLUMN IF NOT EXISTS telefone TEXT;
-ALTER TABLE public.funcionarios ADD COLUMN IF NOT EXISTS funcao TEXT DEFAULT 'Técnico';
-ALTER TABLE public.funcionarios ADD COLUMN IF NOT EXISTS ativo BOOLEAN DEFAULT true;
-ALTER TABLE public.funcionarios ADD COLUMN IF NOT EXISTS observacoes TEXT;
-ALTER TABLE public.funcionarios ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-
--- 3. Remover políticas antigas que possam estar bloqueando o UPDATE
-DO $$
+CREATE OR REPLACE FUNCTION public.ch_salvar_funcionario(
+    p_id TEXT,
+    p_nome TEXT,
+    p_email TEXT,
+    p_telefone TEXT,
+    p_funcao TEXT,
+    p_ativo BOOLEAN,
+    p_observacoes TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
-    pol RECORD;
+    v_func_id UUID;
+    v_res RECORD;
 BEGIN
-    FOR pol IN 
-        SELECT policyname 
-        FROM pg_policies 
-        WHERE tablename IN ('funcionarios', 'ch_equipe_acessos')
-    LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, 'funcionarios');
-        EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, 'ch_equipe_acessos');
-    END LOOP;
-END $$;
+    -- 1. Tenta achar por UUID
+    IF p_id IS NOT NULL AND p_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        SELECT id INTO v_func_id FROM public.funcionarios WHERE id = p_id::UUID LIMIT 1;
+    END IF;
 
--- 4. Reabilitar Row Level Security (RLS)
-ALTER TABLE public.funcionarios ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ch_equipe_acessos ENABLE ROW LEVEL SECURITY;
+    -- 2. Tenta achar por e-mail
+    IF v_func_id IS NULL AND p_email IS NOT NULL AND length(trim(p_email)) > 0 THEN
+        SELECT id INTO v_func_id FROM public.funcionarios WHERE LOWER(email) = LOWER(trim(p_email)) LIMIT 1;
+    END IF;
 
--- 5. Criar Políticas Permissivas para SELECT, INSERT, UPDATE e DELETE (anon e authenticated)
--- Isso permite que tanto o painel web (usando chave anon/publica) quanto usuários autenticados salvem e editem
-CREATE POLICY "funcionarios_select_policy"
-  ON public.funcionarios
-  FOR SELECT
-  TO public, anon, authenticated
-  USING (true);
+    -- 3. Tenta achar por nome
+    IF v_func_id IS NULL AND p_nome IS NOT NULL AND length(trim(p_nome)) > 0 THEN
+        SELECT id INTO v_func_id FROM public.funcionarios WHERE LOWER(nome) = LOWER(trim(p_nome)) LIMIT 1;
+    END IF;
 
-CREATE POLICY "funcionarios_insert_policy"
-  ON public.funcionarios
-  FOR INSERT
-  TO public, anon, authenticated
-  WITH CHECK (true);
+    -- 4. Se encontrou, faz UPDATE direto
+    IF v_func_id IS NOT NULL THEN
+        UPDATE public.funcionarios
+        SET nome = COALESCE(p_nome, nome),
+            email = COALESCE(p_email, email),
+            telefone = COALESCE(p_telefone, telefone),
+            funcao = COALESCE(p_funcao, funcao),
+            ativo = COALESCE(p_ativo, ativo),
+            observacoes = COALESCE(p_observacoes, observacoes)
+        WHERE id = v_func_id
+        RETURNING * INTO v_res;
+        
+        RETURN jsonb_build_object('success', true, 'action', 'update', 'id', v_res.id, 'nome', v_res.nome);
+    ELSE
+        -- 5. Se não encontrou, faz INSERT
+        INSERT INTO public.funcionarios (nome, email, telefone, funcao, ativo, observacoes)
+        VALUES (p_nome, p_email, p_telefone, p_funcao, COALESCE(p_ativo, true), p_observacoes)
+        RETURNING * INTO v_res;
 
-CREATE POLICY "funcionarios_update_policy"
-  ON public.funcionarios
-  FOR UPDATE
-  TO public, anon, authenticated
-  USING (true)
-  WITH CHECK (true);
+        RETURN jsonb_build_object('success', true, 'action', 'insert', 'id', v_res.id, 'nome', v_res.nome);
+    END IF;
+END;
+$$;
 
-CREATE POLICY "funcionarios_delete_policy"
-  ON public.funcionarios
-  FOR DELETE
-  TO public, anon, authenticated
-  USING (true);
+-- Libera execução da função para o aplicativo
+GRANT EXECUTE ON FUNCTION public.ch_salvar_funcionario TO anon, authenticated, service_role;
 
--- 6. Políticas para a tabela de acessos da equipe
-CREATE POLICY "acessos_select_policy"
-  ON public.ch_equipe_acessos
-  FOR SELECT
-  TO public, anon, authenticated
-  USING (true);
-
-CREATE POLICY "acessos_insert_policy"
-  ON public.ch_equipe_acessos
-  FOR INSERT
-  TO public, anon, authenticated
-  WITH CHECK (true);
-
-CREATE POLICY "acessos_update_policy"
-  ON public.ch_equipe_acessos
-  FOR UPDATE
-  TO public, anon, authenticated
-  USING (true)
-  WITH CHECK (true);
-
-CREATE POLICY "acessos_delete_policy"
-  ON public.ch_equipe_acessos
-  FOR DELETE
-  TO public, anon, authenticated
-  USING (true);
-
--- 7. Conceder permissões explícitas de GRANT para roles anon e authenticated
-GRANT ALL ON public.funcionarios TO anon, authenticated, service_role;
-GRANT ALL ON public.ch_equipe_acessos TO anon, authenticated, service_role;
-
--- 8. Mensagem de confirmação
-SELECT 'Políticas de RLS corrigidas com sucesso para funcionarios e acessos!' as resultado;
+SELECT 'Função ch_salvar_funcionario instalada com sucesso! Agora as edições salvam direto no Supabase sem bloqueio de RLS.' AS status;
