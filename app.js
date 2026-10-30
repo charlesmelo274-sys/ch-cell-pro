@@ -914,10 +914,34 @@ const app = {
         }));
       }
 
-      // 3. Fornecedores
-      const { data: fornData } = await db.from('fornecedores').select('*').order('nome');
-      if (fornData && fornData.length) {
-        state.fornecedores = fornData;
+      // 3. Fornecedores (Merge Seguro - Preserva fornecedores cadastrados localmente)
+      try {
+        const { data: fornData } = await db.from('fornecedores').select('*').order('nome');
+        if (Array.isArray(fornData)) {
+          const mergedForn = [...fornData];
+          if (Array.isArray(state.fornecedores)) {
+            state.fornecedores.forEach(lf => {
+              if (!mergedForn.some(sf => sf.id === lf.id || (sf.nome && lf.nome && sf.nome.toLowerCase().trim() === lf.nome.toLowerCase().trim()))) {
+                mergedForn.push(lf);
+                // Replica para a nuvem Supabase
+                db.from('fornecedores').insert({
+                  id: lf.id,
+                  nome: lf.nome,
+                  marca: lf.marca,
+                  especialidade: lf.especialidade,
+                  whatsapp: lf.whatsapp,
+                  telefone: lf.telefone,
+                  endereco: lf.endereco,
+                  site: lf.site,
+                  observacoes: lf.observacoes
+                }).catch(() => {});
+              }
+            });
+          }
+          if (mergedForn.length) state.fornecedores = mergedForn;
+        }
+      } catch (e) {
+        console.warn('Supabase fornecedores sync:', e);
       }
 
       // 4. eBooks & Esquemas (Merge Seguro - Preserva eBooks cadastrados no PC)
@@ -5050,45 +5074,61 @@ const fornecedoresManager = {
   },
 
   async handleSave(event) {
-    event.preventDefault();
-    const id = document.getElementById('fornEditId').value;
-    const nome = document.getElementById('fornNome').value.trim();
-    const marca = document.getElementById('fornMarca').value.trim();
-    const especialidade = document.getElementById('fornEspecialidade').value.trim();
-    const whatsapp = document.getElementById('fornWhatsApp').value.trim();
-    const telefone = document.getElementById('fornTelefone').value.trim();
-    const endereco = document.getElementById('fornEndereco').value.trim();
-    const site = document.getElementById('fornSite').value.trim();
-    const observacoes = document.getElementById('fornObservacoes').value.trim();
+    if (event) {
+      try { event.preventDefault(); } catch {}
+    }
+    const id = (document.getElementById('fornEditId')?.value || '').trim();
+    const nome = (document.getElementById('fornNome')?.value || '').trim();
+    const marca = (document.getElementById('fornMarca')?.value || '').trim();
+    const especialidade = (document.getElementById('fornEspecialidade')?.value || '').trim();
+    const whatsapp = (document.getElementById('fornWhatsApp')?.value || '').trim();
+    const telefone = (document.getElementById('fornTelefone')?.value || '').trim();
+    const endereco = (document.getElementById('fornEndereco')?.value || '').trim();
+    const site = (document.getElementById('fornSite')?.value || '').trim();
+    const observacoes = (document.getElementById('fornObservacoes')?.value || '').trim();
+
+    if (!nome) return alert('Informe o nome do fornecedor.');
 
     const payload = { nome, marca, especialidade, whatsapp, telefone, endereco, site, observacoes };
 
     try {
       if (id) {
         const idx = state.fornecedores.findIndex(x => x.id === id);
-        if (idx !== -1) state.fornecedores[idx] = { ...state.fornecedores[idx], ...payload };
-        if (db && state.currentUser) {
-          await db.from('fornecedores').update(payload).eq('id', id);
+        if (idx !== -1) {
+          state.fornecedores[idx] = { ...state.fornecedores[idx], ...payload };
+        }
+        if (db) {
+          try {
+            await db.from('fornecedores').update(payload).eq('id', id);
+          } catch (e) {
+            console.warn('Supabase fornecedores update:', e);
+          }
         }
       } else {
         const newId = 'forn_' + Date.now();
         const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
         state.fornecedores.unshift(novo);
-        if (db && state.currentUser) {
-          const { data } = await db.from('fornecedores').insert({ ...payload, user_id: state.currentUser.id }).select().single();
-          if (data && data.id) novo.id = data.id;
+        if (db) {
+          try {
+            const insObj = { id: newId, ...payload };
+            if (state.currentUser?.id) insObj.user_id = String(state.currentUser.id);
+            await db.from('fornecedores').insert(insObj);
+          } catch (e) {
+            console.warn('Supabase fornecedores insert:', e);
+          }
         }
       }
 
       state.persistAll();
       this.closeModal();
       this.render();
-      alert('Fornecedor salvo com sucesso!');
+      alert('✓ Fornecedor salvo com sucesso!');
     } catch (err) {
       console.warn('Erro ao salvar fornecedor:', err);
       state.persistAll();
       this.closeModal();
       this.render();
+      alert('✓ Fornecedor salvo localmente!');
     }
   },
 
@@ -5100,7 +5140,7 @@ const fornecedoresManager = {
     state.fornecedores = state.fornecedores.filter(x => x.id !== id);
     state.persistAll();
 
-    if (db && state.currentUser) {
+    if (db) {
       try {
         await db.from('fornecedores').delete().eq('id', id);
       } catch (e) {
@@ -5241,45 +5281,59 @@ const ebooksManager = {
   },
 
   async handleSave(event) {
-    event.preventDefault();
-    const id = document.getElementById('ebookEditId').value;
-    const titulo = document.getElementById('ebookTitulo').value.trim();
-    const marca = document.getElementById('ebookMarca').value;
-    const modelo = document.getElementById('ebookModelo').value.trim();
-    const categoria = document.getElementById('ebookCategoria').value;
-    const url = document.getElementById('ebookUrl').value.trim();
-    const descricao = document.getElementById('ebookDescricao').value.trim();
+    if (event) {
+      try { event.preventDefault(); } catch {}
+    }
+    const id = (document.getElementById('ebookEditId')?.value || '').trim();
+    const titulo = (document.getElementById('ebookTitulo')?.value || '').trim();
+    const marca = document.getElementById('ebookMarca')?.value || 'Apple';
+    const modelo = (document.getElementById('ebookModelo')?.value || '').trim();
+    const categoria = document.getElementById('ebookCategoria')?.value || 'Esquema Elétrico';
+    const url = (document.getElementById('ebookUrl')?.value || '').trim();
+    const descricao = (document.getElementById('ebookDescricao')?.value || '').trim();
+
+    if (!titulo) return alert('Informe o título do eBook ou esquema.');
 
     const payload = { titulo, marca, modelo, categoria, url, descricao };
 
     try {
       if (id) {
         const idx = state.ebooks.findIndex(x => x.id === id);
-        if (idx !== -1) state.ebooks[idx] = { ...state.ebooks[idx], ...payload };
-        if (db && state.currentUser) {
-          await db.from('ebooks').update(payload).eq('id', id);
+        if (idx !== -1) {
+          state.ebooks[idx] = { ...state.ebooks[idx], ...payload };
+        }
+        if (db) {
+          try {
+            await db.from('ebooks').update(payload).eq('id', id);
+          } catch (e) {
+            console.warn('Supabase ebooks update:', e);
+          }
         }
       } else {
         const newId = 'ebk_' + Date.now();
         const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
         state.ebooks.unshift(novo);
-        if (db && state.currentUser) {
-          const insertPayload = { ...payload };
-          if (state.currentUser?.aud === 'authenticated') insertPayload.user_id = state.currentUser.id;
-          const { data } = await db.from('ebooks').insert(insertPayload).select().single();
-          if (data && data.id) novo.id = data.id;
+        if (db) {
+          try {
+            const insObj = { id: newId, ...payload };
+            if (state.currentUser?.id) insObj.user_id = String(state.currentUser.id);
+            await db.from('ebooks').insert(insObj);
+          } catch (e) {
+            console.warn('Supabase ebooks insert:', e);
+          }
         }
       }
 
       state.persistAll();
       this.closeModal();
       this.render();
-      alert('eBook salvo com sucesso!');
+      alert('✓ eBook / Esquema salvo com sucesso!');
     } catch (err) {
       console.warn('Erro ao salvar eBook:', err);
       state.persistAll();
       this.closeModal();
       this.render();
+      alert('✓ eBook salvo localmente!');
     }
   },
 
@@ -5291,7 +5345,7 @@ const ebooksManager = {
     state.ebooks = state.ebooks.filter(x => x.id !== id);
     state.persistAll();
 
-    if (db && state.currentUser) {
+    if (db) {
       try {
         await db.from('ebooks').delete().eq('id', id);
       } catch (e) {
@@ -5472,45 +5526,59 @@ const videoaulasManager = {
   },
 
   async handleSave(event) {
-    event.preventDefault();
-    const id = document.getElementById('videoaulaEditId').value;
-    const titulo = document.getElementById('videoaulaTitulo').value.trim();
-    const marca = document.getElementById('videoaulaMarca').value;
-    const modelo = document.getElementById('videoaulaModelo').value.trim();
-    const categoria = document.getElementById('videoaulaCategoria').value;
-    const url = document.getElementById('videoaulaUrl').value.trim();
-    const descricao = document.getElementById('videoaulaDescricao').value.trim();
+    if (event) {
+      try { event.preventDefault(); } catch {}
+    }
+    const id = (document.getElementById('videoaulaEditId')?.value || '').trim();
+    const titulo = (document.getElementById('videoaulaTitulo')?.value || '').trim();
+    const marca = document.getElementById('videoaulaMarca')?.value || 'Apple';
+    const modelo = (document.getElementById('videoaulaModelo')?.value || '').trim();
+    const categoria = document.getElementById('videoaulaCategoria')?.value || 'Microsoldagem';
+    const url = (document.getElementById('videoaulaUrl')?.value || '').trim();
+    const descricao = (document.getElementById('videoaulaDescricao')?.value || '').trim();
+
+    if (!titulo) return alert('Informe o título da videoaula.');
 
     const payload = { titulo, marca, modelo, categoria, url, descricao };
 
     try {
       if (id) {
         const idx = state.videoaulas.findIndex(x => x.id === id);
-        if (idx !== -1) state.videoaulas[idx] = { ...state.videoaulas[idx], ...payload };
-        if (db && state.currentUser) {
-          await db.from('videoaulas').update(payload).eq('id', id);
+        if (idx !== -1) {
+          state.videoaulas[idx] = { ...state.videoaulas[idx], ...payload };
+        }
+        if (db) {
+          try {
+            await db.from('videoaulas').update(payload).eq('id', id);
+          } catch (e) {
+            console.warn('Supabase videoaulas update:', e);
+          }
         }
       } else {
         const newId = 'vid_' + Date.now();
         const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
         state.videoaulas.unshift(novo);
-        if (db && state.currentUser) {
-          const insertPayload = { ...payload };
-          if (state.currentUser?.aud === 'authenticated') insertPayload.user_id = state.currentUser.id;
-          const { data } = await db.from('videoaulas').insert(insertPayload).select().single();
-          if (data && data.id) novo.id = data.id;
+        if (db) {
+          try {
+            const insObj = { id: newId, ...payload };
+            if (state.currentUser?.id) insObj.user_id = String(state.currentUser.id);
+            await db.from('videoaulas').insert(insObj);
+          } catch (e) {
+            console.warn('Supabase videoaulas insert:', e);
+          }
         }
       }
 
       state.persistAll();
       this.closeModal();
       this.render();
-      alert('Videoaula salva com sucesso!');
+      alert('✓ Videoaula salva com sucesso!');
     } catch (err) {
       console.warn('Erro ao salvar videoaula:', err);
       state.persistAll();
       this.closeModal();
       this.render();
+      alert('✓ Videoaula salva localmente!');
     }
   },
 
@@ -5522,7 +5590,7 @@ const videoaulasManager = {
     state.videoaulas = state.videoaulas.filter(x => x.id !== id);
     state.persistAll();
 
-    if (db && state.currentUser) {
+    if (db) {
       try {
         await db.from('videoaulas').delete().eq('id', id);
       } catch (e) {

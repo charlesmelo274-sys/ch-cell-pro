@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v10-bypass-rls';
+const CACHE_NAME = 'chcell-pro-v11-persist-extras';
 const ASSETS = [
   './',
   './index.html',

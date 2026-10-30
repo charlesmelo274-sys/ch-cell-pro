@@ -108,10 +108,27 @@ export default async function handler(req, res) {
   // ---------------------------------------------------------------------------
   // GET: Retorna o estado sincronizado
   // ---------------------------------------------------------------------------
-  // 1. Tenta buscar direto do servidor central no PC local (database.json atualizado)
+  // 1. Se já tiver cache atualizado em memória (salvo recentemente por qualquer aba/celular), retorna imediatamente
+  if (memorySyncCache) {
+    return res.status(200).json(deepSanitize(memorySyncCache));
+  }
+
+  // 2. Lê database.json empacotado no deploy para manter todos os dados disponíveis
+  try {
+    const dbPath = path.join(process.cwd(), 'database.json');
+    if (fs.existsSync(dbPath)) {
+      const fileData = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+      memorySyncCache = deepSanitize(fileData);
+      return res.status(200).json(memorySyncCache);
+    }
+  } catch (err) {
+    console.warn('Erro ao ler database.json de fallback:', err);
+  }
+
+  // 3. Fallback opcional: tenta túnel com timeout ultra-rápido se configurado
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    const timeout = setTimeout(() => controller.abort(), 600);
     const localRes = await fetch(TUNNEL_URL, {
       signal: controller.signal,
       headers: { 'Cache-Control': 'no-cache' }
@@ -125,23 +142,6 @@ export default async function handler(req, res) {
       }
     }
   } catch {}
-
-  // 2. Se o túnel estiver momentaneamente indisponível, retorna o cache em memória
-  if (memorySyncCache) {
-    return res.status(200).json(deepSanitize(memorySyncCache));
-  }
-
-  // 3. Fallback: Lê database.json empacotado no deploy para manter todos os dados disponíveis
-  try {
-    const dbPath = path.join(process.cwd(), 'database.json');
-    if (fs.existsSync(dbPath)) {
-      const fileData = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-      memorySyncCache = deepSanitize(fileData);
-      return res.status(200).json(memorySyncCache);
-    }
-  } catch (err) {
-    console.warn('Erro ao ler database.json de fallback:', err);
-  }
 
   // 4. Fallback neutro informando disponibilidade
   return res.status(200).json({
