@@ -436,12 +436,6 @@ class AppState {
   }
 
   generateOSCode() {
-
-  formatMoney(val) {
-    return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
-
-  generateOSCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
     for (let i = 0; i < 5; i++) {

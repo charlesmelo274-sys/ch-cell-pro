@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v14-login-fix';
+const CACHE_NAME = 'chcell-pro-v15-login-fix';
 const ASSETS = [
   './',
   './index.html',
