@@ -1,12 +1,10 @@
 /**
  * Vercel Serverless Function — /api/sync
- * Sincronização em tempo real entre o link online (Vercel), Celular e PC Local (Túnel Cloudflare)
+ * Sincronização em tempo real entre PC, Celular e Nuvem
  */
 
 import fs from 'fs';
 import path from 'path';
-
-const TUNNEL_URL = 'https://sticky-laboratory-guarantee-newbie.trycloudflare.com/api/sync';
 
 function fixMojibake(str) {
   if (typeof str !== 'string' || !str) return str || '';
@@ -23,7 +21,7 @@ function fixMojibake(str) {
     .replace(/Ã£/g, 'ã')
     .replace(/Ãƒ/g, 'Ã')
     .replace(/Ã¡/g, 'á')
-    .replace(/Ã/g, 'Á')
+    .replace(/Ã /g, 'Á')
     .replace(/Ã /g, 'à')
     .replace(/Ã /g, 'à ')
     .replace(/Ã€/g, 'À')
@@ -32,7 +30,7 @@ function fixMojibake(str) {
     .replace(/Ãª/g, 'ê')
     .replace(/ÃŠ/g, 'Ê')
     .replace(/Ã­/g, 'í')
-    .replace(/Ã/g, 'Í')
+    .replace(/Ã /g, 'Í')
     .replace(/Ã³/g, 'ó')
     .replace(/Ã“/g, 'Ó')
     .replace(/Ãµ/g, 'õ')
@@ -61,7 +59,7 @@ function deepSanitize(obj) {
   return obj;
 }
 
-// Cache em memória para instâncias ativas da função serverless
+// Cache em memória compartilhado durante a vida do container serverless
 let memorySyncCache = null;
 
 export default async function handler(req, res) {
@@ -76,7 +74,7 @@ export default async function handler(req, res) {
   }
 
   // ---------------------------------------------------------------------------
-  // POST: Recebe dados salvos pelo usuário (em qualquer aba) e replica para o PC
+  // POST: Recebe dados salvos pelo usuário (em qualquer aba) e salva no cache
   // ---------------------------------------------------------------------------
   if (req.method === 'POST') {
     let payload = req.body;
@@ -86,34 +84,32 @@ export default async function handler(req, res) {
 
     if (payload && typeof payload === 'object') {
       const cleanPayload = deepSanitize(payload);
-      memorySyncCache = { ...cleanPayload, last_updated: Date.now() };
+      memorySyncCache = {
+        ...cleanPayload,
+        last_updated: cleanPayload.last_updated || Date.now()
+      };
 
-      // Reenvia assincronamente para o servidor central no PC local via túnel Cloudflare
+      // Tenta gravar no database.json se ambiente com sistema de arquivos gravável
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
-        await fetch(TUNNEL_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(memorySyncCache),
-          signal: controller.signal
-        }).catch(() => {});
-        clearTimeout(timeout);
-      } catch {}
+        const dbPath = path.join(process.cwd(), 'database.json');
+        if (fs.existsSync(dbPath)) {
+          fs.writeFileSync(dbPath, JSON.stringify(memorySyncCache, null, 2), 'utf8');
+        }
+      } catch (err) {}
     }
 
-    return res.status(200).json({ success: true, timestamp: Date.now() });
+    return res.status(200).json({ success: true, timestamp: memorySyncCache?.last_updated || Date.now() });
   }
 
   // ---------------------------------------------------------------------------
-  // GET: Retorna o estado sincronizado
+  // GET: Retorna o estado sincronizado mais recente
   // ---------------------------------------------------------------------------
-  // 1. Se já tiver cache atualizado em memória (salvo recentemente por qualquer aba/celular), retorna imediatamente
+  // 1. Se já tiver dados em memória da sessão, retorna imediatamente
   if (memorySyncCache) {
     return res.status(200).json(deepSanitize(memorySyncCache));
   }
 
-  // 2. Lê database.json empacotado no deploy para manter todos os dados disponíveis
+  // 2. Se não houver em memória, carrega o database.json padrão empacotado no deploy
   try {
     const dbPath = path.join(process.cwd(), 'database.json');
     if (fs.existsSync(dbPath)) {
@@ -122,31 +118,29 @@ export default async function handler(req, res) {
       return res.status(200).json(memorySyncCache);
     }
   } catch (err) {
-    console.warn('Erro ao ler database.json de fallback:', err);
+    console.warn('Erro ao ler database.json:', err);
   }
 
-  // 3. Fallback opcional: tenta túnel com timeout ultra-rápido se configurado
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 600);
-    const localRes = await fetch(TUNNEL_URL, {
-      signal: controller.signal,
-      headers: { 'Cache-Control': 'no-cache' }
-    });
-    clearTimeout(timeout);
-    if (localRes.ok) {
-      const data = await localRes.json();
-      if (data && typeof data === 'object') {
-        memorySyncCache = deepSanitize(data);
-        return res.status(200).json(memorySyncCache);
-      }
-    }
-  } catch {}
-
-  // 4. Fallback neutro informando disponibilidade
+  // 3. Fallback neutro
   return res.status(200).json({
-    status: 'online',
-    message: 'CH Cell Pro Sync Serverless Active',
+    orders: [],
+    products: [],
+    fornecedores: [],
+    ebooks: [],
+    videoaulas: [],
+    sales: [],
+    clientes: [],
+    expenses: [],
+    config: {
+      storeName: 'CH Cell Assistência Técnica',
+      whatsApp: '21987654321',
+      address: 'Rua Principal, 120 - Centro',
+      warranty: 'Garantia legal de 90 dias.',
+      printModel: 'thermal-80'
+    },
+    funcionarios: [],
+    acessos: [],
+    estoqueMovimentacoes: [],
     last_updated: Date.now()
   });
 }

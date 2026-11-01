@@ -112,186 +112,20 @@ const REPAIR_STAGES = [
   { id: 'Pago e Entregue', step: 5, name: 'Pago e Entregue', desc: 'Garantia ativada com sucesso', color: 'slate' }
 ];
 
-// Produtos padrão do PDV (Foto 5)
-const DEFAULT_PRODUCTS = [
-  { id: 'prod_1', nome: 'Película 3D de Vidro', categoria: 'Acessórios', preco: 40.00, custo: 8.00, quantidade: 12, icone: 'smartphone' },
-  { id: 'prod_2', nome: 'Capa Anti-Impacto', categoria: 'Acessórios', preco: 80.00, custo: 20.00, quantidade: 7, icone: 'shield' },
-  { id: 'prod_3', nome: 'Carregador Turbo 20W', categoria: 'Carregadores', preco: 70.00, custo: 22.00, quantidade: 4, icone: 'zap' },
-  { id: 'prod_4', nome: 'Fone Bluetooth TWS', categoria: 'Áudio', preco: 150.00, custo: 55.00, quantidade: 2, icone: 'headphones' },
-  { id: 'prod_5', nome: 'Tela Frontal iPhone 13 Pro OLED', categoria: 'Peças', preco: 650.00, custo: 380.00, quantidade: 3, icone: 'cpu' },
-  { id: 'prod_6', nome: 'Bateria Samsung S22 Original', categoria: 'Peças', preco: 220.00, custo: 90.00, quantidade: 5, icone: 'battery-charging' },
-  { id: 'prod_7', nome: 'Cabo USB-C Trançado 1.5m', categoria: 'Carregadores', preco: 35.00, custo: 9.00, quantidade: 15, icone: 'cable' },
-  { id: 'prod_8', nome: 'Suporte Veicular Magnético', categoria: 'Acessórios', preco: 45.00, custo: 12.00, quantidade: 6, icone: 'compass' }
-];
+// Produtos padrão do PDV (Limpo para produção)
+const DEFAULT_PRODUCTS = [];
 
-// Fornecedores de Peças e Componentes (Aba Restaurada)
-const DEFAULT_FORNECEDORES = [
-  {
-    id: 'forn_1',
-    nome: 'MegaTelas Distribuidora',
-    marca: 'Apple, Samsung, Motorola, Xiaomi',
-    especialidade: 'Telas OLED Originais & Baterias Seladas',
-    telefone: '(11) 3222-1010',
-    whatsapp: '11988881234',
-    endereco: 'Rua Santa Ifigênia, 280 - São Paulo, SP',
-    site: 'https://megatelasdistribuidora.com.br',
-    observacoes: 'Garantia de 90 dias com selo intacto. Despacho no mesmo dia via Sedex até 16h.'
-  },
-  {
-    id: 'forn_2',
-    nome: 'ChipMaster Componentes & Ferramentas',
-    marca: 'Apple, Xiaomi, Motorola, Samsung',
-    especialidade: 'CIs de Carga Tristar/Hydra, PMIC, Estações e Microscópios',
-    telefone: '(19) 3456-7890',
-    whatsapp: '19997778899',
-    endereco: 'Campinas, SP',
-    site: 'https://chipmasterpecas.com.br',
-    observacoes: 'Pedido mínimo R$ 200. Componentes SMD originais em fita carretel.'
-  },
-  {
-    id: 'forn_3',
-    nome: 'FlashCell Atacado de Vidros e Peças',
-    marca: 'Samsung, Motorola, Xiaomi, Realme',
-    especialidade: 'Vidros com Cola OCA, Carcaças e Conectores Tipo-C',
-    telefone: '(21) 2555-4321',
-    whatsapp: '21996665544',
-    endereco: 'Centro, Rio de Janeiro - RJ',
-    site: 'https://flashcellatacado.com.br',
-    observacoes: 'Frete grátis para compras acima de R$ 600. Troca expressa no balcão.'
-  }
-];
+// Fornecedores de Peças e Componentes (Limpo para produção)
+const DEFAULT_FORNECEDORES = [];
 
-// Biblioteca Técnica de eBooks & Esquemas Elétricos (Aba Restaurada)
-const DEFAULT_EBOOKS = [
-  {
-    id: 'ebk_1',
-    titulo: 'Guia de Diagnóstico & Esquema Elétrico iPhone 13 / 13 Pro',
-    marca: 'Apple',
-    modelo: 'iPhone 13 / 13 Pro / 13 Pro Max',
-    categoria: 'Esquema Elétrico',
-    url: 'https://archive.org/details/schematics-sample',
-    descricao: 'Mapeamento detalhado de linhas primárias VDD_MAIN, circuito do Tristar/Hydra, barramentos I2C e teste de tensões com multímetro.'
-  },
-  {
-    id: 'ebk_2',
-    titulo: 'Manual de Serviço & Boardview Samsung Linha Galaxy S22',
-    marca: 'Samsung',
-    modelo: 'Galaxy S22 / S22 Ultra (Exynos & Snapdragon)',
-    categoria: 'Manual de Serviço',
-    url: 'https://archive.org/details/manual-servico-samsung',
-    descricao: 'Diagrama de blocos, guia de testes de desoxidação, diagrama do sensor Hall e circuitos de RF 5G.'
-  },
-  {
-    id: 'ebk_3',
-    titulo: 'Apostila Completa de Microsoldagem e Injeção de Tensão na Prática',
-    marca: 'Multimarcas',
-    modelo: 'Universal (Smartphones Android & iOS)',
-    categoria: 'Microsoldagem',
-    url: 'https://archive.org/details/apostila-microsoldagem',
-    descricao: 'Técnicas de remoção de resina epóxi, reballing com stencil 3D, temperatura ideal de soprador térmico e reconstrução de pads rompidos.'
-  }
-];
+// Biblioteca Técnica de eBooks & Esquemas Elétricos (Limpo para produção)
+const DEFAULT_EBOOKS = [];
 
-// Videoaulas de Bancada & Treinamentos Técnicos (Aba Restaurada)
-const DEFAULT_VIDEOAULAS = [
-  {
-    id: 'vid_1',
-    titulo: 'Como Localizar Curto em Linha Primária com Câmera Térmica e Breu',
-    marca: 'Apple',
-    modelo: 'iPhone 11 / 12 / 13',
-    categoria: 'Microsoldagem',
-    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    descricao: 'Passo a passo com fonte de bancada ajustada em 4.0V e 2A. Demonstração de dissipação térmica com método do breu e detecção instantânea do capacitor em curto.'
-  },
-  {
-    id: 'vid_2',
-    titulo: 'Troca de Vidro na Máquina OCA sem Risco de Mancha no Polarizer',
-    marca: 'Samsung',
-    modelo: 'Linha Galaxy A e Linha S',
-    categoria: 'Troca de Vidro / OCA',
-    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    descricao: 'Aquecimento na separadora a 85°C, uso de fio de molibdênio 0.03mm, limpeza com removedor de cola 530 e laminação precisa na câmara de vácuo.'
-  },
-  {
-    id: 'vid_3',
-    titulo: 'Diagnóstico Avançado de Falha de Carga no Motorola (PMIC / IF-PMIC)',
-    marca: 'Motorola',
-    modelo: 'Moto G60 / Moto G84',
-    categoria: 'Diagnóstico de Carga',
-    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    descricao: 'Teste no USB tester (Dongle USB). Como identificar se a falha é no conector Sub-placa, no flat FPC ou no circuito de chaveamento OVP da placa mãe.'
-  }
-];
+// Videoaulas de Bancada & Treinamentos Técnicos (Limpo para produção)
+const DEFAULT_VIDEOAULAS = [];
 
-// Dados de Exemplo Realistas para o Balcão
-const DEFAULT_OS = [
-  {
-    id: 'os_101',
-    numero: 'A1B2C',
-    cliente_nome: 'João da Silva',
-    cliente_celular: '21988887777',
-    marca: 'Apple',
-    modelo: 'iPhone 13 Pro',
-    cor: 'Azul Sierra',
-    senha: 'Senha numérica: 142536',
-    defeito_relatado: 'Queda acidental. Tela com listras e falha no touch. Alto-falante auricular chiando.',
-    servico: 'Substituição de Tela OLED + Desoxidação do alto-falante auricular',
-    status: 'Em Serviço',
-    funcionario_id: 'func_1',
-    valor: 750.00,
-    valor_pago: 200.00,
-    custo_peca: 380.00,
-    data_entrada: new Date().toISOString().slice(0, 10),
-    previsao_entrega: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-    checklist: {
-      display: 'Atenção',
-      camera: 'OK',
-      audio: 'Atenção',
-      carga: 'OK',
-      conexoes: 'OK',
-      botoes: 'OK',
-      biometria: 'Não test.',
-      bateria: 'OK',
-      carcaca: 'Atenção',
-      proximidade: 'OK'
-    },
-    checklist_obs: 'Micro trincado no canto inferior direito da tampa traseira. Touch falhando na metade superior.',
-    fotos: []
-  },
-  {
-    id: 'os_102',
-    numero: '4892',
-    cliente_nome: 'Maria Santos Oliveira',
-    cliente_celular: '21977776666',
-    marca: 'Samsung',
-    modelo: 'Galaxy S22 Ultra',
-    cor: 'Preto',
-    senha: 'Padrão em L',
-    defeito_relatado: 'Bateria descarregando muito rápido e esquentando na traseira.',
-    servico: 'Troca de Bateria Original Samsung + Selagem IP68',
-    status: 'Finalizado',
-    funcionario_id: 'func_2',
-    valor: 320.00,
-    valor_pago: 320.00,
-    custo_peca: 90.00,
-    data_entrada: new Date(Date.now() - 86400000 * 2).toISOString().slice(0, 10),
-    previsao_entrega: new Date().toISOString().slice(0, 10),
-    checklist: {
-      display: 'OK',
-      camera: 'OK',
-      audio: 'OK',
-      carga: 'OK',
-      conexoes: 'OK',
-      botoes: 'OK',
-      biometria: 'OK',
-      bateria: 'Atenção',
-      carcaca: 'OK',
-      proximidade: 'OK'
-    },
-    checklist_obs: 'Aparelho em excelente estado sem arranhões.',
-    fotos: []
-  }
-];
+// Dados de Exemplo Realistas para o Balcão (Limpo para produção)
+const DEFAULT_OS = [];
 
 const DEFAULT_PERMISSOES_CATALOGO = [
   { codigo: 'clientes.visualizar', descricao: 'Consultar lista e histórico de clientes', grupo: 'Clientes' },
@@ -323,24 +157,6 @@ const DEFAULT_FUNCIONARIOS = [
     telefone: '21999998888',
     ativo: true,
     observacoes: 'Gerente da Loja - Gestão Geral, Equipe e Balcão'
-  },
-  {
-    id: 'func_1',
-    nome: 'Carlos Oliveira (Técnico)',
-    funcao: 'Técnico',
-    email: 'carlos.tecnico@chcell.com',
-    telefone: '21988887777',
-    ativo: true,
-    observacoes: 'Especialista em reparos de placas iPhone, telas e micro solda'
-  },
-  {
-    id: 'func_2',
-    nome: 'Mariana Santos (Atendente)',
-    funcao: 'Atendente',
-    email: 'mariana.atendimento@chcell.com',
-    telefone: '21977776666',
-    ativo: true,
-    observacoes: 'Atendimento de balcão, WhatsApp e abertura de OS'
   }
 ];
 
@@ -357,48 +173,21 @@ const DEFAULT_ACESSOS = [
       'clientes.visualizar': true,
       'clientes.criar': true,
       'clientes.editar': true,
+      'clientes.excluir': true,
       'os.visualizar': true,
       'os.criar': true,
       'os.editar': true,
+      'os.excluir': true,
       'estoque.visualizar': true,
       'estoque.movimentar': true,
       'estoque.criar': true,
       'estoque.editar': true,
       'vendas.visualizar': true,
       'vendas.criar': true,
+      'financeiro.visualizar': true,
       'caixa.visualizar': true,
-      'caixa.lancar': true
-    }
-  },
-  {
-    id: 'acc_1',
-    funcionario_id: 'func_1',
-    perfil: 'funcionario',
-    ativo: true,
-    auth_user_id: 'auth_func_1',
-    troca_senha_obrigatoria: false,
-    senha: '12345678Ch@',
-    permissoes: {
-      'clientes.visualizar': true,
-      'os.visualizar': true,
-      'os.editar': true,
-      'estoque.visualizar': true
-    }
-  },
-  {
-    id: 'acc_2',
-    funcionario_id: 'func_2',
-    perfil: 'funcionario',
-    ativo: true,
-    auth_user_id: 'auth_func_2',
-    troca_senha_obrigatoria: true,
-    senha: '12345678Ch@',
-    permissoes: {
-      'clientes.visualizar': true,
-      'clientes.criar': true,
-      'os.visualizar': true,
-      'os.criar': true,
-      'vendas.criar': true
+      'caixa.lancar': true,
+      'acessos.gerenciar': true
     }
   }
 ];
@@ -415,28 +204,14 @@ class AppState {
     this.acessos = this.loadStorage('chcell_acessos', DEFAULT_ACESSOS);
     this.catalogoPermissoes = DEFAULT_PERMISSOES_CATALOGO;
 
-    this.orders = this.loadStorage('chcell_orders', DEFAULT_OS);
-    this.products = this.loadStorage('chcell_products', DEFAULT_PRODUCTS);
-    this.fornecedores = this.loadStorage('chcell_fornecedores', DEFAULT_FORNECEDORES);
-    this.ebooks = this.loadStorage('chcell_ebooks', DEFAULT_EBOOKS);
-    this.videoaulas = this.loadStorage('chcell_videoaulas', DEFAULT_VIDEOAULAS);
+    this.orders = this.loadStorage('chcell_orders', []);
+    this.products = this.loadStorage('chcell_products', []);
+    this.fornecedores = this.loadStorage('chcell_fornecedores', []);
+    this.ebooks = this.loadStorage('chcell_ebooks', []);
+    this.videoaulas = this.loadStorage('chcell_videoaulas', []);
     this.sales = this.loadStorage('chcell_sales', []);
-    this.clientes = this.loadStorage('chcell_clientes', [
-      {
-        id: 'cli_1',
-        nome: 'João da Silva',
-        celular: '21988887777',
-        cpf: '123.456.789-00',
-        email: 'joao.silva@email.com',
-        endereco: 'Rua das Flores, 120 - Centro',
-        observacoes: 'Cliente frequente, traz aparelhos da família',
-        created_at: new Date().toISOString()
-      }
-    ]);
-    this.expenses = this.loadStorage('chcell_expenses', [
-      { id: 'exp_1', data: new Date().toISOString().slice(0, 10), desc: 'Aluguel do Ponto Comercial', valor: 1200.00, tipo: 'Fixa' },
-      { id: 'exp_2', data: new Date().toISOString().slice(0, 10), desc: 'Energia Elétrica / Internet', valor: 280.00, tipo: 'Variável' }
-    ]);
+    this.clientes = this.loadStorage('chcell_clientes', []);
+    this.expenses = this.loadStorage('chcell_expenses', []);
     this.estoqueMovimentacoes = this.loadStorage('chcell_estoque_mov', []);
     this.config = this.loadStorage('chcell_config', {
       storeName: 'CH Cell Assistência Técnica',
@@ -479,6 +254,7 @@ class AppState {
       }
     }
 
+    this.purgeLegacyMockData();
     this.ensureClientesFromOrders();
 
     this.activeChecklist = {};
@@ -488,6 +264,52 @@ class AppState {
     this.trackingCountdownInterval = null;
     this.activeTrackingOS = null;
     this.navigationHistory = [];
+  }
+
+  purgeLegacyMockData() {
+    const MOCK_IDS = new Set([
+      'os_101', 'os_102', 'os_nlgdx',
+      'prod_1', 'prod_2', 'prod_3', 'prod_4', 'prod_5', 'prod_6', 'prod_7', 'prod_8',
+      'forn_1', 'forn_2', 'forn_3',
+      'ebk_1', 'ebk_2', 'ebk_3',
+      'vid_1', 'vid_2', 'vid_3',
+      'cli_1', 'cli_101',
+      'exp_1', 'exp_2',
+      'func_1', 'func_2', 'acc_1', 'acc_2'
+    ]);
+
+    const cleanFlag = localStorage.getItem('chcell_clean_v20261101_01');
+    if (!cleanFlag) {
+      if (Array.isArray(this.orders)) this.orders = this.orders.filter(o => !MOCK_IDS.has(o.id));
+      if (Array.isArray(this.products)) this.products = this.products.filter(p => !MOCK_IDS.has(p.id));
+      if (Array.isArray(this.fornecedores)) this.fornecedores = this.fornecedores.filter(f => !MOCK_IDS.has(f.id));
+      if (Array.isArray(this.ebooks)) this.ebooks = this.ebooks.filter(e => !MOCK_IDS.has(e.id));
+      if (Array.isArray(this.videoaulas)) this.videoaulas = this.videoaulas.filter(v => !MOCK_IDS.has(v.id));
+      if (Array.isArray(this.clientes)) this.clientes = this.clientes.filter(c => !MOCK_IDS.has(c.id) && c.nome !== 'João da Silva');
+      if (Array.isArray(this.expenses)) this.expenses = this.expenses.filter(e => !MOCK_IDS.has(e.id));
+      if (Array.isArray(this.funcionarios)) this.funcionarios = this.funcionarios.filter(f => !MOCK_IDS.has(f.id) && f.id !== 'func_1' && f.id !== 'func_2');
+      if (Array.isArray(this.acessos)) this.acessos = this.acessos.filter(a => !MOCK_IDS.has(a.id) && a.id !== 'acc_1' && a.id !== 'acc_2');
+
+      localStorage.setItem('chcell_clean_v20261101_01', 'true');
+      this.last_updated = Date.now();
+      this.saveAllStorage();
+    }
+  }
+
+  saveAllStorage() {
+    this.saveStorage('chcell_orders', this.orders);
+    this.saveStorage('chcell_products', this.products);
+    this.saveStorage('chcell_fornecedores', this.fornecedores);
+    this.saveStorage('chcell_ebooks', this.ebooks);
+    this.saveStorage('chcell_videoaulas', this.videoaulas);
+    this.saveStorage('chcell_sales', this.sales);
+    this.saveStorage('chcell_clientes', this.clientes);
+    this.saveStorage('chcell_expenses', this.expenses);
+    this.saveStorage('chcell_config', this.config);
+    this.saveStorage('chcell_funcionarios', this.funcionarios);
+    this.saveStorage('chcell_acessos', this.acessos);
+    this.saveStorage('chcell_estoque_mov', this.estoqueMovimentacoes || []);
+    this.saveStorage('chcell_last_updated', this.last_updated);
   }
 
   loadStorage(key, fallback) {
@@ -534,28 +356,20 @@ class AppState {
   }
 
   async syncWithServer(isInitial = false) {
-    const endpoints = [
-      '/api/sync',
-      'https://sticky-laboratory-guarantee-newbie.trycloudflare.com/api/sync'
-    ];
-
     let data = null;
-    for (const ep of endpoints) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2600);
-        const res = await fetch(ep, { cache: 'no-store', signal: controller.signal });
-        clearTimeout(timeout);
-        if (res.ok) {
-          const json = await res.json();
-          if (json && typeof json === 'object' && (json.orders || json.products || json.ebooks || json.last_updated)) {
-            data = json;
-            break;
-          }
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch('/api/sync', { cache: 'no-store', signal: controller.signal });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const json = await res.json();
+        if (json && typeof json === 'object') {
+          data = json;
         }
-      } catch (err) {
-        // Tenta o próximo endpoint se falhar
       }
+    } catch (err) {
+      // Falha de rede ou offline
     }
 
     if (!data) {
@@ -564,189 +378,41 @@ class AppState {
       return;
     }
 
-    // Se o servidor ainda estiver vazio (primeira inicialização)
-    if (!data.last_updated && (!data.orders || !data.orders.length)) {
+    const serverTime = Number(data.last_updated || 0);
+    const localTime = Number(this.last_updated || 0);
+
+    // Se o servidor possui dados mais novos que o navegador local, adota dados do servidor
+    if (serverTime > localTime) {
+      this.orders = deepSanitize(data.orders || []);
+      this.products = deepSanitize(data.products || []);
+      this.fornecedores = deepSanitize(data.fornecedores || []);
+      this.ebooks = deepSanitize(data.ebooks || []);
+      this.videoaulas = deepSanitize(data.videoaulas || []);
+      this.sales = deepSanitize(data.sales || []);
+      this.clientes = deepSanitize(data.clientes || []);
+      this.expenses = deepSanitize(data.expenses || []);
+      if (data.config) this.config = deepSanitize(data.config);
+      if (Array.isArray(data.funcionarios) && data.funcionarios.length) {
+        this.funcionarios = deepSanitize(data.funcionarios);
+      }
+      if (Array.isArray(data.acessos) && data.acessos.length) {
+        this.acessos = deepSanitize(data.acessos);
+      }
+      this.estoqueMovimentacoes = deepSanitize(data.estoqueMovimentacoes || []);
+      this.last_updated = serverTime;
+
+      this.saveAllStorage();
+
+      if (window.app && window.app.renderCurrentView) {
+        window.app.renderCurrentView();
+      }
+    } else if (localTime > serverTime) {
+      // Local tem edições mais recentes: envia para o servidor central
       await this.pushToServer();
-      return;
     }
-
-    // FLAG para saber se temos edições locais que não existem no servidor e precisam ser salvas nele
-    let needsPushBack = false;
-
-    // =========================================================================
-    // MERGE SEGURO PARA TODAS AS ABAS (NUNCA EXCLUI EDIÇÕES FEITAS PELO USUÁRIO)
-    // =========================================================================
-
-    // 1. EBOOKS & ESQUEMAS ELÉTRICOS (Preserva o que o usuário cadastrou no PC)
-    if (!Array.isArray(data.ebooks)) data.ebooks = [];
-    if (Array.isArray(this.ebooks) && this.ebooks.length) {
-      this.ebooks.forEach(le => {
-        if (!data.ebooks.some(se => se.id === le.id || (se.titulo && le.titulo && se.titulo.toLowerCase().trim() === le.titulo.toLowerCase().trim()))) {
-          data.ebooks.push(le);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 2. VIDEOAULAS & TREINAMENTOS (Preserva o que o usuário cadastrou no PC)
-    if (!Array.isArray(data.videoaulas)) data.videoaulas = [];
-    if (Array.isArray(this.videoaulas) && this.videoaulas.length) {
-      this.videoaulas.forEach(lv => {
-        if (!data.videoaulas.some(sv => sv.id === lv.id || (sv.titulo && lv.titulo && sv.titulo.toLowerCase().trim() === lv.titulo.toLowerCase().trim()))) {
-          data.videoaulas.push(lv);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 3. FORNECEDORES
-    if (!Array.isArray(data.fornecedores)) data.fornecedores = [];
-    if (Array.isArray(this.fornecedores) && this.fornecedores.length) {
-      this.fornecedores.forEach(lf => {
-        if (!data.fornecedores.some(sf => sf.id === lf.id || (sf.nome && lf.nome && sf.nome.toLowerCase().trim() === lf.nome.toLowerCase().trim()))) {
-          data.fornecedores.push(lf);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 4. CLIENTES
-    if (!Array.isArray(data.clientes)) data.clientes = [];
-    if (Array.isArray(this.clientes) && this.clientes.length) {
-      this.clientes.forEach(lc => {
-        const cleanL = (lc.celular || '').replace(/\D/g, '');
-        if (!data.clientes.some(sc => sc.id === lc.id || (cleanL && (sc.celular || '').replace(/\D/g, '') === cleanL) || (sc.nome && lc.nome && sc.nome.toLowerCase().trim() === lc.nome.toLowerCase().trim()))) {
-          data.clientes.push(lc);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 5. ORDENS DE SERVIÇO (OS)
-    if (!Array.isArray(data.orders)) data.orders = [];
-    if (Array.isArray(this.orders) && this.orders.length) {
-      this.orders.forEach(lo => {
-        if (!data.orders.some(so => so.id === lo.id || (so.numero && lo.numero && String(so.numero).toLowerCase() === String(lo.numero).toLowerCase()))) {
-          data.orders.push(lo);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 6. PRODUTOS / ESTOQUE
-    if (!Array.isArray(data.products)) data.products = [];
-    if (Array.isArray(this.products) && this.products.length) {
-      this.products.forEach(lp => {
-        if (!data.products.some(sp => sp.id === lp.id || (sp.sku && lp.sku && sp.sku === lp.sku) || (sp.nome && lp.nome && sp.nome.toLowerCase().trim() === lp.nome.toLowerCase().trim()))) {
-          data.products.push(lp);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 7. FUNCIONÁRIOS
-    if (!Array.isArray(data.funcionarios)) data.funcionarios = [];
-    if (Array.isArray(this.funcionarios) && this.funcionarios.length) {
-      this.funcionarios.forEach(lf => {
-        if (!data.funcionarios.some(sf => sf.id === lf.id || (sf.email && lf.email && sf.email.toLowerCase() === lf.email.toLowerCase()) || (sf.nome && lf.nome && sf.nome.toLowerCase().trim() === lf.nome.toLowerCase().trim()))) {
-          data.funcionarios.push(lf);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 8. ACESSOS DA EQUIPE
-    if (!Array.isArray(data.acessos)) data.acessos = [];
-    if (Array.isArray(this.acessos) && this.acessos.length) {
-      this.acessos.forEach(la => {
-        if (!data.acessos.some(sa => sa.id === la.id || sa.funcionario_id === la.funcionario_id)) {
-          data.acessos.push(la);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 9. VENDAS BALCÃO
-    if (!Array.isArray(data.sales)) data.sales = [];
-    if (Array.isArray(this.sales) && this.sales.length) {
-      this.sales.forEach(ls => {
-        if (!data.sales.some(ss => ss.id === ls.id)) {
-          data.sales.push(ls);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 10. DESPESAS
-    if (!Array.isArray(data.expenses)) data.expenses = [];
-    if (Array.isArray(this.expenses) && this.expenses.length) {
-      this.expenses.forEach(le => {
-        if (!data.expenses.some(se => se.id === le.id)) {
-          data.expenses.push(le);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // 11. MOVIMENTAÇÕES DE ESTOQUE
-    if (!Array.isArray(data.estoqueMovimentacoes)) data.estoqueMovimentacoes = [];
-    if (Array.isArray(this.estoqueMovimentacoes) && this.estoqueMovimentacoes.length) {
-      this.estoqueMovimentacoes.forEach(lm => {
-        if (!data.estoqueMovimentacoes.some(sm => sm.id === lm.id)) {
-          data.estoqueMovimentacoes.push(lm);
-          needsPushBack = true;
-        }
-      });
-    }
-
-    // Atualiza estado unificado em memória (com sanitização universal UTF-8)
-    this.orders = deepSanitize(data.orders);
-    this.products = deepSanitize(data.products);
-    this.fornecedores = deepSanitize(data.fornecedores);
-    this.ebooks = deepSanitize(data.ebooks);
-    this.videoaulas = deepSanitize(data.videoaulas);
-    this.sales = deepSanitize(data.sales);
-    this.clientes = deepSanitize(data.clientes);
-    this.ensureClientesFromOrders();
-    this.expenses = deepSanitize(data.expenses);
-    this.config = deepSanitize(data.config || this.config);
-    if (!this.config.storeName || /Assist.*[Ã\uFFFD]|T.*[Ã\uFFFD]/.test(this.config.storeName)) {
-      this.config.storeName = 'CH Cell Assistência Técnica';
-    }
-    if (!this.config.warranty || /servi.*[Ã\uFFFD]|pe.*[Ã\uFFFD]/.test(this.config.warranty)) {
-      this.config.warranty = 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída. Não cobre danos por quedas, trincados ou umidade.';
-    }
-    this.funcionarios = deepSanitize(data.funcionarios);
-    this.acessos = deepSanitize(data.acessos);
-    this.estoqueMovimentacoes = deepSanitize(data.estoqueMovimentacoes);
-    this.last_updated = Math.max(data.last_updated || 0, this.last_updated || 0, Date.now());
-
-    // Salva cópia local offline completa
-    this.saveStorage('chcell_orders', this.orders);
-    this.saveStorage('chcell_products', this.products);
-    this.saveStorage('chcell_fornecedores', this.fornecedores);
-    this.saveStorage('chcell_ebooks', this.ebooks);
-    this.saveStorage('chcell_videoaulas', this.videoaulas);
-    this.saveStorage('chcell_sales', this.sales);
-    this.saveStorage('chcell_clientes', this.clientes);
-    this.saveStorage('chcell_expenses', this.expenses);
-    this.saveStorage('chcell_config', this.config);
-    this.saveStorage('chcell_funcionarios', this.funcionarios);
-    this.saveStorage('chcell_acessos', this.acessos);
-    this.saveStorage('chcell_estoque_mov', this.estoqueMovimentacoes);
-    this.saveStorage('chcell_last_updated', this.last_updated);
 
     const syncEl = document.getElementById('cloudSyncStatus');
-    if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Central Conectada (PC, Celular & Vercel)`;
-
-    if (window.app && window.app.renderCurrentView) {
-      window.app.renderCurrentView();
-    }
-
-    // Se o cliente local tinha itens novos que não estavam no servidor central, salva no servidor agora!
-    if (needsPushBack) {
-      await this.pushToServer();
-    }
+    if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Central Conectada (PC, Celular & Nuvem)`;
   }
 
   async pushToServer() {
@@ -754,43 +420,29 @@ class AppState {
     this.saveStorage('chcell_last_updated', this.last_updated);
 
     const payload = {
-      orders: this.orders,
-      products: this.products,
-      fornecedores: this.fornecedores,
-      ebooks: this.ebooks,
-      videoaulas: this.videoaulas,
-      sales: this.sales,
-      clientes: this.clientes,
-      expenses: this.expenses,
-      config: this.config,
-      funcionarios: this.funcionarios,
-      acessos: this.acessos,
+      orders: this.orders || [],
+      products: this.products || [],
+      fornecedores: this.fornecedores || [],
+      ebooks: this.ebooks || [],
+      videoaulas: this.videoaulas || [],
+      sales: this.sales || [],
+      clientes: this.clientes || [],
+      expenses: this.expenses || [],
+      config: this.config || {},
+      funcionarios: this.funcionarios || [],
+      acessos: this.acessos || [],
       estoqueMovimentacoes: this.estoqueMovimentacoes || [],
       last_updated: this.last_updated
     };
 
-    const payloadJson = JSON.stringify(payload);
-
-    // 1. Envia para a rota relativa /api/sync (funciona tanto no localhost quanto no Vercel)
     try {
       await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: payloadJson
+        body: JSON.stringify(payload)
       });
     } catch (e) {
       console.warn('Erro ao sincronizar com /api/sync:', e);
-    }
-
-    // 2. Se estiver rodando fora do localhost (ex: no Vercel ou no celular via 4G), replica também diretamente para o túnel do PC local
-    if (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-      try {
-        fetch('https://sticky-laboratory-guarantee-newbie.trycloudflare.com/api/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payloadJson
-        }).catch(() => {});
-      } catch {}
     }
 
     const syncEl = document.getElementById('cloudSyncStatus');
@@ -798,20 +450,15 @@ class AppState {
   }
 
   persistAll() {
-    this.saveStorage('chcell_orders', this.orders);
-    this.saveStorage('chcell_products', this.products);
-    this.saveStorage('chcell_fornecedores', this.fornecedores);
-    this.saveStorage('chcell_ebooks', this.ebooks);
-    this.saveStorage('chcell_videoaulas', this.videoaulas);
-    this.saveStorage('chcell_sales', this.sales);
-    this.saveStorage('chcell_clientes', this.clientes);
-    this.saveStorage('chcell_expenses', this.expenses);
-    this.saveStorage('chcell_config', this.config);
-    this.saveStorage('chcell_funcionarios', this.funcionarios);
-    this.saveStorage('chcell_acessos', this.acessos);
-    this.saveStorage('chcell_estoque_mov', this.estoqueMovimentacoes || []);
+    this.saveAllStorage();
     this.pushToServer();
   }
+
+  formatMoney(val) {
+    return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  generateOSCode() {
 
   formatMoney(val) {
     return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -1226,7 +873,7 @@ const app = {
     // Faturamento hoje (OS pagas hoje + vendas de balcão)
     const hoje = new Date().toISOString().slice(0, 10);
     const fatOS = state.orders.reduce((acc, o) => acc + (o.data_entrada === hoje ? Number(o.valor_pago || 0) : 0), 0);
-    const fatVendas = state.sales.reduce((acc, s) => acc + ((s.data || '').slice(0, 10) === hoje ? Number(s.total || 0) : 0), 0);
+    const fatVendas = state.sales.reduce((acc, s) => acc + (((s.created_at || s.data || '').slice(0, 10) === hoje ? Number(s.total || 0) : 0)), 0);
     const totalHoje = fatOS + fatVendas;
 
     document.getElementById('statEmAnalise').textContent = analise;
@@ -1408,6 +1055,8 @@ const app = {
 
     const btnModalPdf = document.getElementById('btnModalDownloadPDF');
     if (btnModalPdf) btnModalPdf.classList.add('hidden');
+    const btnModalDelete = document.getElementById('btnModalDeleteOS');
+    if (btnModalDelete) btnModalDelete.classList.add('hidden');
 
     document.getElementById('modalOS').classList.remove('hidden');
     if (window.lucide) window.lucide.createIcons();
@@ -1435,6 +1084,8 @@ const app = {
 
     const btnModalPdf = document.getElementById('btnModalDownloadPDF');
     if (btnModalPdf) btnModalPdf.classList.remove('hidden');
+    const btnModalDelete = document.getElementById('btnModalDeleteOS');
+    if (btnModalDelete) btnModalDelete.classList.remove('hidden');
 
     document.getElementById('osClientName').value = os.cliente_nome || '';
     document.getElementById('osClientPhone').value = os.cliente_celular || '';
@@ -1568,6 +1219,7 @@ const app = {
     if (db && state.currentUser) {
       try {
         const payloadSupabase = {
+          numero: osData.numero,
           cliente_nome: osData.cliente_nome,
           cliente_celular: osData.cliente_celular,
           marca: osData.marca,
@@ -1583,8 +1235,14 @@ const app = {
           checklist_checkin: { itens: osData.checklist, observacoes: osData.checklist_obs },
           fotos_checkin: osData.fotos || []
         };
-        if (!isNew && editId) {
+        if (osData.funcionario_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osData.funcionario_id)) {
+          payloadSupabase.funcionario_id = osData.funcionario_id;
+        }
+        const isUuid = editId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editId);
+        if (!isNew && isUuid) {
           db.from('ordens_servico').update(payloadSupabase).eq('id', editId).then(() => {}).catch(() => {});
+        } else if (!isNew && osData.numero) {
+          db.from('ordens_servico').update(payloadSupabase).eq('numero', osData.numero).then(() => {}).catch(() => {});
         } else {
           db.from('ordens_servico').insert([payloadSupabase]).then(() => {}).catch(() => {});
         }
@@ -1600,6 +1258,36 @@ const app = {
     if (confirm(`Ordem de Serviço #${osData.numero} salva com sucesso!\n\nDeseja enviar agora a mensagem com o link da Nota Fiscal / Comprovante em PDF no WhatsApp do cliente?`)) {
       this.sendWhatsApp(osData.id);
     }
+  },
+
+  deleteOS(id) {
+    if (!id) return;
+    const os = (state.orders || []).find(o => o.id === id || o.numero === id);
+    if (!os) return;
+
+    if (!confirm(`Atenção: Deseja realmente excluir a Ordem de Serviço #${os.numero} de ${os.cliente_nome || 'Cliente'}?\n\nEsta ação removerá a OS definitivamente.`)) {
+      return;
+    }
+
+    state.orders = state.orders.filter(o => o.id !== os.id);
+    state.persistAll();
+
+    if (db) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(os.id);
+        if (isUuid) {
+          db.from('ordens_servico').delete().eq('id', os.id).then(() => {}).catch(() => {});
+        } else if (os.numero) {
+          db.from('ordens_servico').delete().eq('numero', os.numero).then(() => {}).catch(() => {});
+        }
+      } catch (e) {
+        console.warn('Erro ao excluir OS no Supabase:', e);
+      }
+    }
+
+    this.closeOSModal();
+    this.renderAll();
+    alert(`Ordem de Serviço #${os.numero} excluída com sucesso.`);
   },
 
   // =========================================================================
@@ -2234,7 +1922,7 @@ Qualquer dúvida estamos à disposição!`;
             </div>
 
             <!-- Action buttons -->
-            <div class="grid grid-cols-5 gap-1.5 pt-1">
+            <div class="grid grid-cols-6 gap-1 pt-1">
               <button onclick="app.sendWhatsApp('${os.id}')" title="Enviar no WhatsApp" class="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-xl text-xs flex items-center justify-center transition cursor-pointer">
                 <i data-lucide="message-circle" class="w-4 h-4"></i>
               </button>
@@ -2249,6 +1937,9 @@ Qualquer dúvida estamos à disposição!`;
               </button>
               <button onclick="app.editOS('${os.id}')" title="Editar OS" class="p-2 bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold rounded-xl text-xs flex items-center justify-center transition cursor-pointer">
                 <i data-lucide="pencil" class="w-4 h-4"></i>
+              </button>
+              <button onclick="app.deleteOS('${os.id}')" title="Excluir OS" class="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center justify-center transition cursor-pointer">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
               </button>
             </div>
           </div>
@@ -3279,22 +2970,31 @@ Qualquer dúvida estamos à disposição!`;
 
     // Extrato recente
     const extrato = [
-      ...state.orders.map(o => ({ data: o.data_entrada, tipo: 'entrada', desc: `OS #${o.numero} - ${o.cliente_nome}`, valor: o.valor })),
-      ...state.sales.map(s => ({ data: s.data.slice(0, 10), tipo: 'entrada', desc: `Venda PDV: ${s.cliente}`, valor: s.total })),
-      ...state.expenses.map(e => ({ data: e.data, tipo: 'saida', desc: `Despesa: ${e.desc}`, valor: e.valor }))
-    ].sort((a, b) => b.data.localeCompare(a.data)).slice(0, 15);
+      ...state.orders.map(o => ({ data: o.data_entrada || '', tipo: 'entrada', desc: `OS #${o.numero} - ${o.cliente_nome}`, valor: o.valor })),
+      ...state.sales.map(s => ({ data: (s.created_at || s.data || new Date().toISOString()).slice(0, 10), tipo: 'entrada', desc: `Venda PDV: ${s.cliente_nome || s.cliente || 'Balcão'}`, valor: s.total })),
+      ...state.expenses.map(e => ({ id: e.id, data: e.data || '', tipo: 'saida', desc: `Despesa: ${e.desc}`, valor: e.valor }))
+    ].sort((a, b) => (b.data || '').localeCompare(a.data || '')).slice(0, 20);
 
     container.innerHTML = extrato.map(item => `
-      <div class="py-2.5 flex items-center justify-between">
+      <div class="py-2.5 flex items-center justify-between border-b border-slate-50 last:border-0">
         <div>
-          <p class="font-bold text-slate-800">${item.desc}</p>
+          <p class="font-bold text-slate-800 text-xs sm:text-sm">${item.desc}</p>
           <p class="text-[11px] text-slate-400">${item.data}</p>
         </div>
-        <span class="font-black ${item.tipo === 'entrada' ? 'text-emerald-600' : 'text-rose-600'}">
-          ${item.tipo === 'entrada' ? '+' : '-'} ${state.formatMoney(item.valor)}
-        </span>
+        <div class="flex items-center gap-2">
+          <span class="font-black text-xs sm:text-sm ${item.tipo === 'entrada' ? 'text-emerald-600' : 'text-rose-600'}">
+            ${item.tipo === 'entrada' ? '+' : '-'} ${state.formatMoney(item.valor)}
+          </span>
+          ${item.id ? `
+            <button onclick="app.deleteExpense('${item.id}')" title="Excluir despesa" class="p-1 text-slate-300 hover:text-rose-600 rounded transition cursor-pointer">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          ` : ''}
+        </div>
       </div>
     `).join('');
+
+    if (window.lucide) window.lucide.createIcons();
   },
 
   openNewExpenseModal() {
@@ -3313,6 +3013,39 @@ Qualquer dúvida estamos à disposição!`;
 
     state.persistAll();
     this.renderAll();
+  },
+
+  deleteExpense(id) {
+    if (!id) return;
+    const exp = (state.expenses || []).find(e => e.id === id);
+    if (!exp) return;
+    if (!confirm(`Deseja realmente remover a despesa "${exp.desc}" no valor de ${state.formatMoney(exp.valor)}?`)) return;
+
+    state.expenses = state.expenses.filter(e => e.id !== id);
+    state.persistAll();
+    this.renderAll();
+  },
+
+  resetAllDataToCleanState() {
+    if (!confirm('⚠️ ATENÇÃO: Deseja realmente zerar todos os dados de teste?\n\nIsso irá apagar todas as Ordens de Serviço, Produtos do Estoque, Clientes, Fornecedores, eBooks, Videoaulas, Vendas e Despesas de teste, deixando o sistema 100% pronto e limpo para você começar a cadastrar.\n\nOs logins e dados da loja serão mantidos intactos.\n\nDeseja continuar?')) {
+      return;
+    }
+
+    state.orders = [];
+    state.products = [];
+    state.clientes = [];
+    state.fornecedores = [];
+    state.ebooks = [];
+    state.videoaulas = [];
+    state.sales = [];
+    state.expenses = [];
+    state.estoqueMovimentacoes = [];
+    state.cart = [];
+    state.last_updated = Date.now();
+
+    state.persistAll();
+    this.renderAll();
+    alert('✓ Sistema completamente limpo! Todas as abas foram zeradas com sucesso para início dos cadastros.');
   },
 
   // =========================================================================
@@ -3517,12 +3250,35 @@ Qualquer dúvida estamos à disposição!`;
   },
 
   loadSampleData() {
-    if (confirm('Recarregar os exemplos iniciais do balcão e produtos?')) {
-      state.orders = [...DEFAULT_OS];
-      state.products = [...DEFAULT_PRODUCTS];
+    if (confirm('Deseja carregar exemplos práticos de demonstração (1 OS e 2 produtos)?')) {
+      state.orders = [{
+        id: 'os_' + Date.now(),
+        numero: state.generateOSCode(),
+        cliente_nome: 'Exemplo Cliente',
+        cliente_celular: '21988887777',
+        marca: 'Apple',
+        modelo: 'iPhone 13',
+        cor: 'Azul',
+        senha: '1234',
+        defeito_relatado: 'Troca de tela',
+        servico: 'Substituição de Tela OLED',
+        status: 'Em Análise',
+        valor: 450.00,
+        valor_pago: 100.00,
+        custo_peca: 200.00,
+        data_entrada: new Date().toISOString().slice(0, 10),
+        checklist: { display: 'Atenção', camera: 'OK', audio: 'OK', carga: 'OK', conexoes: 'OK', botoes: 'OK', biometria: 'OK', bateria: 'OK', carcaca: 'OK', proximidade: 'OK' },
+        checklist_obs: 'Aparelho de teste',
+        fotos: []
+      }];
+      state.products = [
+        { id: 'prod_' + Date.now(), nome: 'Película 3D de Vidro', categoria: 'Acessórios', preco: 40.00, custo: 8.00, quantidade: 10, icone: 'smartphone' },
+        { id: 'prod_' + (Date.now() + 1), nome: 'Capa Anti-Impacto', categoria: 'Acessórios', preco: 60.00, custo: 15.00, quantidade: 5, icone: 'shield' }
+      ];
+      state.last_updated = Date.now();
       state.persistAll();
       this.renderAll();
-      alert('Exemplos recarregados!');
+      alert('Exemplos de demonstração carregados!');
     }
   }
 };

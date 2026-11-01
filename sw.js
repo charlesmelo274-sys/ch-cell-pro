@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v11-persist-extras';
+const CACHE_NAME = 'chcell-pro-v13-clean-prod';
 const ASSETS = [
   './',
   './index.html',
