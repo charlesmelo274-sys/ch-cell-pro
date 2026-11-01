@@ -10,6 +10,93 @@ const SUPABASE_ANON = 'sb_publishable_wyBsvwcafNB5vqpWUTFzeA_ZmZgyldd';
 const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// =========================================================================
+// 1. EVENT BUS (Comunicação Reativa Entre Telas na SPA)
+// =========================================================================
+const AppEvents = {
+  events: {},
+  on(eventName, callback) {
+    if (!this.events[eventName]) this.events[eventName] = [];
+    this.events[eventName].push(callback);
+  },
+  off(eventName, callback) {
+    if (!this.events[eventName]) return;
+    this.events[eventName] = this.events[eventName].filter(cb => cb !== callback);
+  },
+  emit(eventName, data) {
+    if (this.events[eventName]) {
+      this.events[eventName].forEach(cb => {
+        try { cb(data); } catch (err) { console.error(`[EventBus] Erro ao executar ${eventName}:`, err); }
+      });
+    }
+  }
+};
+window.AppEvents = AppEvents;
+
+// =========================================================================
+// 2. DATA SERVICE (Centralização de Operações Supabase)
+// =========================================================================
+const DataService = {
+  async salvarOS(osPayload, isNew, editId) {
+    if (!db) return null;
+    try {
+      const isUuid = editId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editId);
+      if (!isNew && isUuid) {
+        return await db.from('ordens_servico').update(osPayload).eq('id', editId).select();
+      } else if (!isNew && osPayload.numero) {
+        return await db.from('ordens_servico').update(osPayload).eq('numero', osPayload.numero).select();
+      } else {
+        return await db.from('ordens_servico').insert([osPayload]).select();
+      }
+    } catch (err) {
+      console.warn('[DataService] Erro ao salvar OS no Supabase:', err);
+      return null;
+    }
+  },
+
+  async atualizarStatusOS(osId, novoStatus) {
+    if (!db) return null;
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osId);
+      const query = db.from('ordens_servico').update({ status: novoStatus, updated_at: new Date().toISOString() });
+      const { data, error } = isUuid ? await query.eq('id', osId).select() : await query.eq('numero', osId).select();
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.warn('[DataService] Erro ao atualizar status no Supabase:', err);
+      return null;
+    }
+  },
+
+  async darBaixaEstoque(produtoId, quantidadeUtilizada, motivo = 'Baixa por OS') {
+    // 1. Atualização local imediata
+    const prod = (state.products || []).find(p => p.id === produtoId || p.nome?.toLowerCase() === produtoId?.toLowerCase());
+    if (prod) {
+      prod.quantidade = Math.max(0, (prod.quantidade || 0) - quantidadeUtilizada);
+      state.last_updated = Date.now();
+      state.persistAll();
+    }
+
+    // 2. Persistência centralizada no Supabase se disponível
+    if (db) {
+      try {
+        const { data: serverProd } = await db.from('produtos').select('quantidade').eq('id', produtoId).single();
+        if (serverProd) {
+          const novaQtd = Math.max(0, (serverProd.quantidade || 0) - quantidadeUtilizada);
+          await db.from('produtos').update({ quantidade: novaQtd }).eq('id', produtoId);
+        }
+      } catch (e) {
+        console.warn('[DataService] Erro ao baixar estoque no Supabase:', e);
+      }
+    }
+
+    // Notifica telas que o estoque mudou
+    AppEvents.emit('ESTOQUE_ATUALIZADO', { produtoId, quantidadeRestante: prod?.quantidade });
+    return prod;
+  }
+};
+window.DataService = DataService;
+
 // Sanitizador universal de caracteres / mojibake UTF-8
 function fixMojibake(str) {
   if (typeof str !== 'string' || !str) return str || '';
@@ -660,17 +747,45 @@ const app = {
   },
 
   setupURLRouting() {
-    // Escuta navegação nativa do navegador (botão voltar do celular ou do browser)
+    // 1. Escuta troca de rota por hash (#os-list, #estoque, etc)
+    window.addEventListener('hashchange', () => {
+      const hash = window.location.hash.replace('#', '').trim();
+      if (hash && hash !== state.currentView) {
+        this.navigate(hash, true);
+      }
+    });
+
+    // 2. Escuta navegação nativa do navegador (botão voltar do celular ou do browser)
     window.addEventListener('popstate', (event) => {
       if (event.state && event.state.view) {
         this.navigate(event.state.view, true);
       } else {
-        const hash = window.location.hash.replace('#', '');
+        const hash = window.location.hash.replace('#', '').trim();
         if (hash) {
           this.navigate(hash, true);
         } else {
           this.navigate('dashboard', true);
         }
+      }
+    });
+
+    // 3. Ouvintes reativos de comunicação entre telas (EventBus)
+    AppEvents.on('ESTOQUE_ATUALIZADO', () => {
+      if (state.currentView === 'estoque' && typeof this.renderEstoqueView === 'function') {
+        this.renderEstoqueView();
+      }
+      if (state.currentView === 'dashboard') {
+        this.renderDashboardStats();
+      }
+    });
+
+    AppEvents.on('OS_ATUALIZADA', (dados) => {
+      console.log('[EventBus] OS Atualizada:', dados);
+      if (state.currentView === 'os-list') {
+        this.renderOSList();
+      }
+      if (state.currentView === 'dashboard') {
+        this.renderDashboardStats();
       }
     });
 
@@ -1186,8 +1301,8 @@ const app = {
 
     state.persistAll();
 
-    // Replica assincronamente para a nuvem Supabase se conectado
-    if (db && state.currentUser) {
+    // Replica assincronamente para a nuvem Supabase centralizado via DataService
+    if (state.currentUser) {
       try {
         const payloadSupabase = {
           numero: osData.numero,
@@ -1209,17 +1324,18 @@ const app = {
         if (osData.funcionario_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osData.funcionario_id)) {
           payloadSupabase.funcionario_id = osData.funcionario_id;
         }
-        const isUuid = editId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editId);
-        if (!isNew && isUuid) {
-          db.from('ordens_servico').update(payloadSupabase).eq('id', editId).then(() => {}).catch(() => {});
-        } else if (!isNew && osData.numero) {
-          db.from('ordens_servico').update(payloadSupabase).eq('numero', osData.numero).then(() => {}).catch(() => {});
-        } else {
-          db.from('ordens_servico').insert([payloadSupabase]).then(() => {}).catch(() => {});
-        }
+        DataService.salvarOS(payloadSupabase, isNew, editId);
       } catch (err) {
-        console.warn('Sync OS com Supabase:', err);
+        console.warn('Sync OS com Supabase via DataService:', err);
       }
+    }
+
+    // Comunica as demais telas da SPA via EventBus que a OS foi salva/atualizada
+    AppEvents.emit('OS_ATUALIZADA', { os: osData, isNew });
+
+    // Se o status for de aprovação ou finalização e houver peça vinculada, dispara baixa automática
+    if (['Aprovado', 'Em Serviço', 'Finalizado', 'Pago e Entregue'].includes(osData.status) && osData.peca_id) {
+      DataService.darBaixaEstoque(osData.peca_id, 1, `OS #${osData.numero} - ${osData.status}`);
     }
 
     this.closeOSModal();
