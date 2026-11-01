@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS public.videoaulas (
 CREATE TABLE IF NOT EXISTS public.despesas (
     id TEXT PRIMARY KEY,
     data DATE DEFAULT CURRENT_DATE,
-    desc TEXT NOT NULL,
+    descricao TEXT,
+    "desc" TEXT,
     valor NUMERIC(10,2) DEFAULT 0,
     tipo TEXT DEFAULT 'Variável',
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -117,7 +118,7 @@ BEGIN
 
     -- Remove funcionários de teste (preserva Ozeas Ferreira)
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'funcionarios') THEN
-        DELETE FROM public.funcionarios WHERE LOWER(email) NOT LIKE '%ozeas%' AND LOWER(nome) NOT LIKE '%ozeas%';
+        DELETE FROM public.funcionarios WHERE LOWER(COALESCE(email, '')) NOT LIKE '%ozeas%' AND LOWER(COALESCE(nome, '')) NOT LIKE '%ozeas%';
     END IF;
 
     RAISE NOTICE 'Limpeza concluída com sucesso!';
@@ -150,8 +151,8 @@ BEGIN
             EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', pol.policyname, tbl.tablename);
         END LOOP;
 
-        -- Cria política 100% permissiva
-        EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO public, anon, authenticated USING (true) WITH CHECK (true)', tbl.tablename || '_open_policy', tbl.tablename);
+        -- Cria política 100% permissiva universal (para public/anon/authenticated)
+        EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl.tablename || '_open_policy', tbl.tablename);
         EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', tbl.tablename);
     END LOOP;
 END $$;
