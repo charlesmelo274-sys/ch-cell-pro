@@ -3292,12 +3292,13 @@ const MASTER_ADMIN_PASS = '88511611Ch';
 
 const authManager = {
   async init() {
-    // 1. Verifica se já há sessão salva do administrador no navegador
+    // 1. Verifica se já há sessão salva no navegador (admin OU funcionário)
     const savedSession = localStorage.getItem('chcell_auth_user');
     if (savedSession) {
       try {
         const u = JSON.parse(savedSession);
-        if (u.email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase()) {
+        if (u.email && u.email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase()) {
+          // Sessão salva do administrador principal
           state.currentUser = { email: MASTER_ADMIN_EMAIL, id: 'proprietario_charles' };
           state.userRole = 'administrador';
           state.isEmployee = false;
@@ -3307,6 +3308,21 @@ const authManager = {
           if (db) app.syncWithSupabase();
           equipeManager.loadAccessData();
           return;
+        } else if (u.email && u.isEmployee) {
+          // Sessão salva de funcionário/gerente — restaura sem precisar do Supabase
+          const func = (state.funcionarios || []).find(f => (f.email || '').toLowerCase().trim() === u.email.toLowerCase().trim());
+          if (func) {
+            state.currentUser = { email: func.email, id: func.id, nome: func.nome };
+            state.userRole = u.role || 'gerente';
+            state.isEmployee = true;
+            this.setSessionUI({ email: func.email, role: `EQUIPE (${(u.role || 'gerente').toUpperCase()})` });
+            this.hideAllAuthScreens();
+            this.applyEmployeeRestrictions();
+            if (db) app.syncWithSupabase();
+            return;
+          }
+          // Funcionário não encontrado localmente — remove sessão e pede login
+          localStorage.removeItem('chcell_auth_user');
         }
       } catch (e) {
         localStorage.removeItem('chcell_auth_user');
@@ -3328,14 +3344,15 @@ const authManager = {
         await this.checkSession(session);
       });
 
+      // Timeout aumentado para 5s para evitar falsos negativos em conexões lentas
       const sessionPromise = db.auth.getSession();
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout_session')), 2500));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout_session')), 5000));
       const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
       await this.checkSession(session);
     } catch (err) {
       console.warn('Erro ou timeout ao verificar sessão Supabase:', err);
-      const isPublic = new URLSearchParams(window.location.search).has('track') || 
-                       new URLSearchParams(window.location.search).has('pdf') || 
+      const isPublic = new URLSearchParams(window.location.search).has('track') ||
+                       new URLSearchParams(window.location.search).has('pdf') ||
                        new URLSearchParams(window.location.search).has('os') ||
                        new URLSearchParams(window.location.search).has('doc');
       if (!isPublic || window._userRequestedLogin) {
