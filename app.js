@@ -20,58 +20,35 @@ function fixMojibake(str) {
       if (decoded && !decoded.includes('\uFFFD')) s = decoded;
     } catch (e) {}
   }
-  return s
-    .replace(/Ã§/g, 'ç')
-    .replace(/Ã‡/g, 'Ç')
-    .replace(/Ã£/g, 'ã')
-    .replace(/Ãƒ/g, 'Ã')
-    .replace(/Ã¡/g, 'á')
-    .replace(/Ã /g, 'Á')
-    .replace(/Ã /g, 'à')
-    .replace(/Ã /g, 'à ')
-    .replace(/Ã€/g, 'À')
-    .replace(/Ã©/g, 'é')
-    .replace(/Ã‰/g, 'É')
-    .replace(/Ãª/g, 'ê')
-    .replace(/ÃŠ/g, 'Ê')
-    .replace(/Ã­/g, 'í')
-    .replace(/Ã /g, 'Í')
-    .replace(/Ã³/g, 'ó')
-    .replace(/Ã“/g, 'Ó')
-    .replace(/Ãµ/g, 'õ')
-    .replace(/Ã•/g, 'Õ')
-    .replace(/Ã´/g, 'ô')
-    .replace(/Ã”/g, 'Ô')
-    .replace(/Ãº/g, 'ú')
-    .replace(/Ãš/g, 'Ú')
-    .replace(/Ã¢/g, 'â')
-    .replace(/Ã‚/g, 'Â')
-    .replace(/â€”/g, '—')
-    .replace(/â€“/g, '–')
-    .replace(/ASSIST[\uFFFDÃª]+NCIA/gi, 'ASSISTÊNCIA')
-    .replace(/Assist[\uFFFDÃª]+ncia/gi, 'Assistência')
-    .replace(/T[\uFFFDÃ©]+CNICA/gi, 'TÉCNICA')
-    .replace(/T[\uFFFDÃ©]+cnica/gi, 'Técnica')
-    .replace(/t[\uFFFDÃ©]+cnica/gi, 'técnica')
-    .replace(/T[\uFFFDÃ©]+cnico/gi, 'Técnico')
-    .replace(/t[\uFFFDÃ©]+cnico/gi, 'técnico')
-    .replace(/servi[\uFFFDÃ§]+o/gi, 'serviço')
-    .replace(/pe[\uFFFDÃ§]+a/gi, 'peça')
-    .replace(/substitu[\uFFFDÃ­]+da/gi, 'substituída')
-    .replace(/N[\uFFFDÃ£]+o/gi, 'Não')
-    .replace(/n[\uFFFDÃ£]+o/gi, 'não')
-    .replace(/Aten[\uFFFDÃ§Ã£]+o/gi, 'Atenção')
-    .replace(/aten[\uFFFDÃ§Ã£]+o/gi, 'atenção')
-    .replace(/Respons[\uFFFDÃ¡]+vel/gi, 'Responsável')
-    .replace(/respons[\uFFFDÃ¡]+vel/gi, 'responsável')
-    .replace(/Oz[\uFFFDÃ©]+ias/gi, 'Ozéias')
-    .replace(/Gest[\uFFFDÃ£]+o/gi, 'Gestão')
-    .replace(/balc[\uFFFDÃ£]+o/gi, 'balcão')
-    .replace(/Balc[\uFFFDÃ£]+o/gi, 'Balcão')
-    .replace(/padr[\uFFFDÃ£]+o/gi, 'padrão')
-    .replace(/Padr[\uFFFDÃ£]+o/gi, 'Padrão');
+  // Corrige pares de bytes Latin-1 (mojibake UTF-8) para caracteres corretos
+  s = s
+    .replace(/\u00C3\u00A7/g, '\u00E7') // c cedilha minusculo
+    .replace(/\u00C3\u0087/g, '\u00C7') // C cedilha maiusculo
+    .replace(/\u00C3\u00A3/g, '\u00E3') // a til minusculo
+    .replace(/\u00C3\u00A1/g, '\u00E1') // a agudo
+    .replace(/\u00C3\u0081/g, '\u00C1') // A agudo
+    .replace(/\u00C3\u00A0/g, '\u00E0') // a grave
+    .replace(/\u00C3\u0080/g, '\u00C0') // A grave
+    .replace(/\u00C3\u00A9/g, '\u00E9') // e agudo
+    .replace(/\u00C3\u0089/g, '\u00C9') // E agudo
+    .replace(/\u00C3\u00AA/g, '\u00EA') // e circunflexo
+    .replace(/\u00C3\u008A/g, '\u00CA') // E circunflexo
+    .replace(/\u00C3\u00AD/g, '\u00ED') // i agudo
+    .replace(/\u00C3\u008D/g, '\u00CD') // I agudo
+    .replace(/\u00C3\u00B3/g, '\u00F3') // o agudo
+    .replace(/\u00C3\u0093/g, '\u00D3') // O agudo
+    .replace(/\u00C3\u00B5/g, '\u00F5') // o til
+    .replace(/\u00C3\u0095/g, '\u00D5') // O til
+    .replace(/\u00C3\u00B4/g, '\u00F4') // o circunflexo
+    .replace(/\u00C3\u0094/g, '\u00D4') // O circunflexo
+    .replace(/\u00C3\u00BA/g, '\u00FA') // u agudo
+    .replace(/\u00C3\u009A/g, '\u00DA') // U agudo
+    .replace(/\u00C3\u00A2/g, '\u00E2') // a circunflexo
+    .replace(/\u00C3\u0082/g, '\u00C2') // A circunflexo
+    .replace(/\u00E2\u0080\u0093/g, '\u2013') // en dash
+    .replace(/\u00E2\u0080\u0094/g, '\u2014'); // em dash
+  return s;
 }
-
 function deepSanitize(obj) {
   if (!obj) return obj;
   if (typeof obj === 'string') return fixMojibake(obj);
