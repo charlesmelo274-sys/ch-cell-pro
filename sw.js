@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v17-estoque-mov';
+const CACHE_NAME = 'chcell-pro-v18-final-audit';
 const ASSETS = [
   './',
   './index.html',

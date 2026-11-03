@@ -792,6 +792,29 @@ const app = {
     this.handlePublicClientRouting();
   },
 
+  toggleMobileMenu() {
+    const drawer = document.getElementById('mobileMenuDrawer');
+    const backdrop = document.getElementById('mobileMenuBackdrop');
+    const panel = document.getElementById('mobileMenuPanel');
+    if (!drawer) return;
+
+    const isOpen = !drawer.classList.contains('hidden');
+    if (isOpen) {
+      if (backdrop) backdrop.classList.remove('opacity-100');
+      if (panel) panel.classList.add('-translate-x-full');
+      setTimeout(() => {
+        drawer.classList.add('hidden');
+      }, 200);
+    } else {
+      drawer.classList.remove('hidden');
+      setTimeout(() => {
+        if (backdrop) backdrop.classList.add('opacity-100');
+        if (panel) panel.classList.remove('-translate-x-full');
+      }, 10);
+      if (window.lucide) window.lucide.createIcons();
+    }
+  },
+
   goBack() {
     if (Array.isArray(state.navigationHistory) && state.navigationHistory.length > 0) {
       const prevView = state.navigationHistory.pop();
@@ -956,9 +979,13 @@ const app = {
     const servico = state.orders.filter(o => o.status === 'Em Serviço' || o.status === 'Aguardando Peças').length;
     const finalizado = state.orders.filter(o => o.status === 'Finalizado').length;
     
-    // Faturamento hoje (OS pagas hoje + vendas de balcão)
+    // Faturamento hoje (OS com pagamento hoje + vendas de balcão)
     const hoje = new Date().toISOString().slice(0, 10);
-    const fatOS = state.orders.reduce((acc, o) => acc + (o.data_entrada === hoje ? Number(o.valor_pago || 0) : 0), 0);
+    const fatOS = state.orders.reduce((acc, o) => {
+      const dataOS = (o.data_pagamento || o.data_entrada || '').slice(0, 10);
+      const pago = Number(o.valor_pago || (o.status === 'Pago e Entregue' ? o.valor : 0) || 0);
+      return acc + (dataOS === hoje || o.status === 'Pago e Entregue' ? pago : 0);
+    }, 0);
     const fatVendas = state.sales.reduce((acc, s) => acc + (((s.created_at || s.data || '').slice(0, 10) === hoje ? Number(s.total || 0) : 0)), 0);
     const totalHoje = fatOS + fatVendas;
 
