@@ -2978,9 +2978,6 @@ Qualquer dúvida estamos à disposição!`;
     this.renderAll();
     alert('✓ Produto salvo com sucesso no estoque!');
   },
-    this.renderAll();
-    alert('Produto salvo com sucesso no estoque!');
-  },
 
   openMovimentarModal(id) {
     const p = state.products.find(x => x.id === id);
