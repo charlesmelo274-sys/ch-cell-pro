@@ -6,7 +6,7 @@
 
 -- 1. Tabela de Fornecedores
 CREATE TABLE IF NOT EXISTS public.fornecedores (
-    id TEXT PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nome TEXT NOT NULL,
     marca TEXT,
     especialidade TEXT,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.fornecedores (
     endereco TEXT,
     site TEXT,
     observacoes TEXT,
-    user_id TEXT,
+    user_id UUID,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

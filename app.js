@@ -683,9 +683,10 @@ const app = {
             state.fornecedores.forEach(lf => {
               if (!mergedForn.some(sf => sf.id === lf.id || (sf.nome && lf.nome && sf.nome.toLowerCase().trim() === lf.nome.toLowerCase().trim()))) {
                 mergedForn.push(lf);
-                // Replica para a nuvem Supabase
-                db.from('fornecedores').insert({
-                  id: lf.id,
+                // Replica para a nuvem Supabase garantindo UUID válido
+                const isUuid = lf.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lf.id);
+                const insForn = {
+                  id: isUuid ? lf.id : generateUUID(),
                   nome: lf.nome,
                   marca: lf.marca,
                   especialidade: lf.especialidade,
@@ -694,6 +695,9 @@ const app = {
                   endereco: lf.endereco,
                   site: lf.site,
                   observacoes: lf.observacoes
+                };
+                db.from('fornecedores').insert([insForn]).then(({ data }) => {
+                  if (data && data[0]) lf.id = data[0].id;
                 }).catch(() => {});
               }
             });
@@ -714,8 +718,9 @@ const app = {
               if (!mergedEbooks.some(se => se.id === le.id || (se.titulo && le.titulo && se.titulo.toLowerCase().trim() === le.titulo.toLowerCase().trim()))) {
                 mergedEbooks.push(le);
                 // Replica para a nuvem Supabase
+                const isUuid = le.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(le.id);
                 db.from('ebooks').insert({
-                  id: le.id,
+                  id: isUuid ? le.id : generateUUID(),
                   titulo: le.titulo,
                   marca: le.marca,
                   modelo: le.modelo,
@@ -742,8 +747,9 @@ const app = {
               if (!mergedVids.some(sv => sv.id === lv.id || (sv.titulo && lv.titulo && sv.titulo.toLowerCase().trim() === lv.titulo.toLowerCase().trim()))) {
                 mergedVids.push(lv);
                 // Replica para a nuvem Supabase
+                const isUuid = lv.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lv.id);
                 db.from('videoaulas').insert({
-                  id: lv.id,
+                  id: isUuid ? lv.id : generateUUID(),
                   titulo: lv.titulo,
                   marca: lv.marca,
                   modelo: lv.modelo,
@@ -5321,19 +5327,29 @@ const fornecedoresManager = {
     let savedId = id;
     if (db) {
       try {
+        const isUuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
         if (id) {
-          const { error } = await db.from('fornecedores').update(payload).eq('id', id);
-          if (error) {
-            throw new Error(`Falha ao atualizar fornecedor no Supabase: ${error.message || error.details || 'Erro desconhecido'}`);
+          let updateRes;
+          if (isUuid) {
+            updateRes = await db.from('fornecedores').update(payload).eq('id', id).select();
+          } else {
+            updateRes = await db.from('fornecedores').update(payload).eq('nome', nome).select();
+          }
+          if (updateRes.error) {
+            throw new Error(`Falha ao atualizar fornecedor no Supabase: ${updateRes.error.message || updateRes.error.details || 'Erro desconhecido'}`);
           }
         } else {
-          savedId = 'forn_' + Date.now();
+          // Gera obrigatoriamente UUID válido compatível com coluna UUID do PostgreSQL
+          savedId = generateUUID();
           const insObj = { id: savedId, ...payload, created_at: new Date().toISOString() };
-          if (state.currentUser?.id) insObj.user_id = String(state.currentUser.id);
-          const { error } = await db.from('fornecedores').insert([insObj]);
+          if (state.currentUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.currentUser.id)) {
+            insObj.user_id = state.currentUser.id;
+          }
+          const { data, error } = await db.from('fornecedores').insert([insObj]).select();
           if (error) {
             throw new Error(`Falha ao cadastrar fornecedor no Supabase: ${error.message || error.details || 'Erro ao gravar no banco'}`);
           }
+          if (data && data[0]?.id) savedId = data[0].id;
         }
       } catch (err) {
         console.error('[Fornecedores] Erro no Supabase:', err);
@@ -5349,7 +5365,7 @@ const fornecedoresManager = {
         state.fornecedores[idx] = { ...state.fornecedores[idx], ...payload };
       }
     } else {
-      const novo = { id: savedId || ('forn_' + Date.now()), ...payload, created_at: new Date().toISOString() };
+      const novo = { id: savedId || generateUUID(), ...payload, created_at: new Date().toISOString() };
       state.fornecedores.unshift(novo);
     }
 
@@ -5366,8 +5382,14 @@ const fornecedoresManager = {
 
     if (db) {
       try {
-        const { error } = await db.from('fornecedores').delete().eq('id', id);
-        if (error) throw error;
+        const isUuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let delRes;
+        if (isUuid) {
+          delRes = await db.from('fornecedores').delete().eq('id', id);
+        } else {
+          delRes = await db.from('fornecedores').delete().eq('nome', f.nome);
+        }
+        if (delRes.error) throw delRes.error;
       } catch (e) {
         console.error('Erro ao excluir no Supabase:', e);
         alert(`❌ Erro ao excluir fornecedor no banco:\n${e.message || 'Erro de conexão'}`);
@@ -5540,13 +5562,15 @@ const ebooksManager = {
           }
         }
       } else {
-        const newId = 'ebk_' + Date.now();
+        const newId = generateUUID();
         const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
         state.ebooks.unshift(novo);
         if (db) {
           try {
             const insObj = { id: newId, ...payload };
-            if (state.currentUser?.id) insObj.user_id = String(state.currentUser.id);
+            if (state.currentUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.currentUser.id)) {
+              insObj.user_id = state.currentUser.id;
+            }
             await db.from('ebooks').insert(insObj);
           } catch (e) {
             console.warn('Supabase ebooks insert:', e);
@@ -5785,13 +5809,15 @@ const videoaulasManager = {
           }
         }
       } else {
-        const newId = 'vid_' + Date.now();
+        const newId = generateUUID();
         const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
         state.videoaulas.unshift(novo);
         if (db) {
           try {
             const insObj = { id: newId, ...payload };
-            if (state.currentUser?.id) insObj.user_id = String(state.currentUser.id);
+            if (state.currentUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.currentUser.id)) {
+              insObj.user_id = state.currentUser.id;
+            }
             await db.from('videoaulas').insert(insObj);
           } catch (e) {
             console.warn('Supabase videoaulas insert:', e);
