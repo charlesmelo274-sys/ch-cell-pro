@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v16-spa-router';
+const CACHE_NAME = 'chcell-pro-v17-estoque-mov';
 const ASSETS = [
   './',
   './index.html',

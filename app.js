@@ -1139,6 +1139,11 @@ const app = {
     this.renderChecklistForm();
     this.renderPhotosGallery();
 
+    // Popula o select de peças do estoque (novo: campo de peça vinculada à OS)
+    this.popularSelectPecas(prefill?.peca_id || '');
+    const pecaQtd = document.getElementById('osPecaQtd');
+    if (pecaQtd) pecaQtd.value = '1';
+
     const btnModalPdf = document.getElementById('btnModalDownloadPDF');
     if (btnModalPdf) btnModalPdf.classList.add('hidden');
     const btnModalDelete = document.getElementById('btnModalDeleteOS');
@@ -1200,6 +1205,11 @@ const app = {
 
     this.renderChecklistForm();
     this.renderPhotosGallery();
+
+    // Popula o select de peças com a peça já vinculada (se houver)
+    this.popularSelectPecas(os.peca_id || '');
+    const pecaQtd = document.getElementById('osPecaQtd');
+    if (pecaQtd) pecaQtd.value = os.peca_quantidade || 1;
 
     const modal = document.getElementById('modalOS');
     if (modal) {
@@ -1285,12 +1295,22 @@ const app = {
       valor: parseFloat(document.getElementById('osTotalValue').value) || 0,
       valor_pago: parseFloat(document.getElementById('osPaidValue').value) || 0,
       previsao_entrega: document.getElementById('osEstimatedDate').value,
+      peca_id: document.getElementById('osPecaSelect')?.value || null,
+      peca_quantidade: parseInt(document.getElementById('osPecaQtd')?.value || '1') || 1,
       checklist: { ...state.activeChecklist },
       checklist_obs: document.getElementById('osChecklistNotes').value.trim(),
       fotos: [...state.activePhotos],
       custo_peca: editId ? (state.orders.find(o => o.id === editId)?.custo_peca || 0) : 0,
       data_entrada: editId ? (state.orders.find(o => o.id === editId)?.data_entrada || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10)
     };
+
+    // Atualiza custo_peca automaticamente caso tenha peça selecionada
+    if (osData.peca_id) {
+      const pecaObj = (state.products || []).find(p => p.id === osData.peca_id);
+      if (pecaObj && pecaObj.custo) {
+        osData.custo_peca = (pecaObj.custo || 0) * (osData.peca_quantidade || 1);
+      }
+    }
 
     if (isNew) {
       state.orders.unshift(osData);
@@ -1318,6 +1338,8 @@ const app = {
           valor: osData.valor,
           valor_pago: osData.valor_pago,
           previsao_entrega: osData.previsao_entrega || null,
+          peca_id: osData.peca_id,
+          peca_quantidade: osData.peca_quantidade,
           checklist_checkin: { itens: osData.checklist, observacoes: osData.checklist_obs },
           fotos_checkin: osData.fotos || []
         };
@@ -1333,9 +1355,17 @@ const app = {
     // Comunica as demais telas da SPA via EventBus que a OS foi salva/atualizada
     AppEvents.emit('OS_ATUALIZADA', { os: osData, isNew });
 
-    // Se o status for de aprovação ou finalização e houver peça vinculada, dispara baixa automática
-    if (['Aprovado', 'Em Serviço', 'Finalizado', 'Pago e Entregue'].includes(osData.status) && osData.peca_id) {
-      DataService.darBaixaEstoque(osData.peca_id, 1, `OS #${osData.numero} - ${osData.status}`);
+    // Baixa automática de peça selecionada no estoque com registro da movimentação
+    if (osData.peca_id && (isNew || ['Aprovado', 'Em Serviço', 'Finalizado', 'Pago e Entregue'].includes(osData.status))) {
+      const qtdBaixa = osData.peca_quantidade || 1;
+      DataService.darBaixaEstoque(osData.peca_id, qtdBaixa, `OS #${osData.numero} (${osData.cliente_nome || 'Cliente'})`);
+      this.registrarMovimentacao({
+        produtoId: osData.peca_id,
+        tipo: 'SAIDA',
+        quantidade: qtdBaixa,
+        motivo: `Uso na OS #${osData.numero} - ${osData.modelo || osData.servico || 'Manutenção'}`,
+        osId: osData.id
+      });
     }
 
     this.closeOSModal();
@@ -2552,6 +2582,166 @@ Qualquer dúvida estamos à disposição!`;
     });
 
     if (window.lucide) window.lucide.createIcons();
+
+    // Sempre renderiza o historico junto ao abrir o estoque
+    this.renderMovimentacoesTable();
+  },
+
+  // =========================================================================
+  // HISTORICO DE MOVIMENTACOES DE ESTOQUE
+  // =========================================================================
+  async renderMovimentacoesTable() {
+    const tbody = document.getElementById('movimentacoesTableBody');
+    const badge = document.getElementById('movBadgeCount');
+    if (!tbody) return;
+
+    const filtro = (document.getElementById('movFiltroTipo')?.value || '').toUpperCase();
+
+    // 1. Tenta buscar do Supabase primeiro (com fallback para o localStorage)
+    let movs = [];
+    if (db) {
+      try {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">Carregando do servidor...</td></tr>';
+        let query = db
+          .from('estoque_movimentacoes')
+          .select('*, produto:produto_id(nome, categoria)')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (filtro) query = query.eq('tipo', filtro);
+        const { data, error } = await query;
+        if (!error && Array.isArray(data)) {
+          movs = data;
+          // Sincroniza no localStorage para uso offline
+          if (!Array.isArray(state.estoqueMovimentacoes)) state.estoqueMovimentacoes = [];
+          data.forEach(m => {
+            const local = state.estoqueMovimentacoes.find(x => x.id === m.id);
+            if (!local) state.estoqueMovimentacoes.unshift(m);
+          });
+        }
+      } catch (e) {
+        console.warn('[Estoque] Erro ao buscar movimentacoes do Supabase:', e);
+      }
+    }
+
+    // 2. Fallback: usa localStorage se Supabase nao retornou nada
+    if (!movs.length) {
+      movs = (state.estoqueMovimentacoes || []);
+      if (filtro) movs = movs.filter(m => (m.tipo || '').toUpperCase() === filtro);
+    }
+
+    if (badge) badge.textContent = `${movs.length} registros`;
+
+    if (!movs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400">Nenhuma movimentacao registrada ainda. Adicione ou movimente um produto no estoque.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = movs.map(m => {
+      const isEntrada = (m.tipo || '').toUpperCase() === 'ENTRADA';
+      const tipoBadge = isEntrada
+        ? '<span class="px-2 py-0.5 rounded-full font-black text-[10px] bg-emerald-100 text-emerald-700">ENTRADA</span>'
+        : '<span class="px-2 py-0.5 rounded-full font-black text-[10px] bg-rose-100 text-rose-700">SAIDA</span>';
+      const qtdColor = isEntrada ? 'text-emerald-600' : 'text-rose-600';
+      const qtdSinal = isEntrada ? '+' : '-';
+
+      // Nome do produto: pode vir do join Supabase ou do localStorage
+      const nomeProd = m.produto?.nome
+        || (state.products || []).find(p => p.id === m.produto_id)?.nome
+        || m.produto_nome
+        || m.produto_id
+        || '—';
+
+      const data = m.created_at
+        ? new Date(m.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+        : (m.data ? new Date(m.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+
+      return `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="p-3 text-slate-500 whitespace-nowrap">${data}</td>
+          <td class="p-3 font-bold text-slate-800">${nomeProd}</td>
+          <td class="p-3 text-center">${tipoBadge}</td>
+          <td class="p-3 text-center font-black ${qtdColor}">${qtdSinal}${m.quantidade || 0}</td>
+          <td class="p-3 text-slate-500">${m.motivo || m.observacao || '—'}</td>
+          <td class="p-3 text-slate-400">${m.responsavel || m.usuario || '—'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+  },
+
+  // =========================================================================
+  // CAMPO DE PECA NA MODAL DE OS
+  // =========================================================================
+  popularSelectPecas(pecaAtualId = '') {
+    const select = document.getElementById('osPecaSelect');
+    if (!select) return;
+    const prods = (state.products || []).filter(p => (p.quantidade || 0) > 0);
+    select.innerHTML = '<option value="">— Selecionar peca do estoque —</option>'
+      + prods.map(p => {
+          const sel = p.id === pecaAtualId ? 'selected' : '';
+          return `<option value="${p.id}" data-qtd="${p.quantidade}" data-nome="${p.nome}" ${sel}>${p.nome} (${p.quantidade} un.) — ${state.formatMoney(p.custo)}</option>`;
+        }).join('');
+    // Mostra info se ja houver peca selecionada
+    if (pecaAtualId) this.onPecaOSChange();
+  },
+
+  onPecaOSChange() {
+    const select = document.getElementById('osPecaSelect');
+    const infoEl = document.getElementById('osPecaEstoqueInfo');
+    const saldoEl = document.getElementById('osPecaSaldo');
+    if (!select) return;
+    const selected = select.options[select.selectedIndex];
+    const qtd = parseInt(selected?.dataset?.qtd || '0');
+    if (select.value && qtd !== undefined) {
+      if (infoEl) infoEl.classList.remove('hidden');
+      if (saldoEl) {
+        saldoEl.textContent = qtd;
+        saldoEl.className = qtd <= 0 ? 'font-bold text-rose-600' : qtd <= 2 ? 'font-bold text-amber-600' : 'font-bold text-emerald-600';
+      }
+    } else {
+      if (infoEl) infoEl.classList.add('hidden');
+    }
+  },
+
+  // Registra movimentacao local + Supabase
+  async registrarMovimentacao({ produtoId, produtoNome, tipo, quantidade, motivo, osId }) {
+    const mov = {
+      id: 'mov_' + Date.now(),
+      produto_id: produtoId,
+      produto_nome: produtoNome || (state.products || []).find(p => p.id === produtoId)?.nome || produtoId,
+      tipo: tipo.toUpperCase(), // 'ENTRADA' ou 'SAIDA'
+      quantidade: parseInt(quantidade) || 1,
+      motivo: motivo || '',
+      os_id: osId || null,
+      responsavel: state.currentUser?.email || state.currentUser?.nome || 'Sistema',
+      created_at: new Date().toISOString(),
+      data: new Date().toISOString()
+    };
+
+    // Salva localmente
+    if (!Array.isArray(state.estoqueMovimentacoes)) state.estoqueMovimentacoes = [];
+    state.estoqueMovimentacoes.unshift(mov);
+    state.persistAll();
+
+    // Persiste no Supabase
+    if (db) {
+      try {
+        await db.from('estoque_movimentacoes').insert([{
+          produto_id: produtoId,
+          tipo: mov.tipo,
+          quantidade: mov.quantidade,
+          motivo: mov.motivo,
+          os_id: mov.os_id,
+          responsavel: mov.responsavel,
+          created_at: mov.created_at
+        }]);
+      } catch (e) {
+        console.warn('[Estoque] Aviso ao gravar movimentacao no Supabase:', e);
+      }
+    }
+
+    return mov;
   },
 
   openNewProductModal() {
@@ -2713,15 +2903,33 @@ Qualquer dúvida estamos à disposição!`;
     state.estoqueMovimentacoes.unshift({
       id: 'mov_' + Date.now(),
       produto_id: prod.id,
-      tipo,
+      tipo: tipo.toUpperCase(),
       quantidade: qtd,
       motivo,
+      responsavel: state.currentUser?.email || state.currentUser?.nome || 'Admin',
       created_at: new Date().toISOString()
     });
 
     state.persistAll();
+
+    // Sincroniza produto e movimentação no Supabase centralizado
+    if (db) {
+      db.from('produtos').update({ quantidade: prod.quantidade }).eq('id', prod.id).catch(e => console.warn(e));
+      db.from('estoque_movimentacoes').insert([{
+        produto_id: prod.id,
+        tipo: tipo.toUpperCase(),
+        quantidade: qtd,
+        motivo,
+        responsavel: state.currentUser?.email || state.currentUser?.nome || 'Admin',
+        created_at: new Date().toISOString()
+      }]).catch(e => console.warn(e));
+    }
+
+    AppEvents.emit('ESTOQUE_ATUALIZADO', { produtoId: prod.id, novoSaldo: prod.quantidade });
+
     this.closeMovimentarModal();
     this.renderAll();
+    this.renderMovimentacoesTable();
 
     const acaoTexto = tipo === 'entrada' ? 'adicionada(s) (+ Subir Estoque)' : 'descontada(s) (- Abaixar Estoque)';
     alert(`Movimentação registrada com sucesso!\n${qtd} unidade(s) ${acaoTexto}.\nNovo saldo de ${prod.nome}: ${prod.quantidade} un.`);

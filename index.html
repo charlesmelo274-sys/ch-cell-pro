@@ -1100,6 +1100,44 @@
             </table>
           </div>
         </div>
+
+        <!-- HISTORICO DE MOVIMENTACOES -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-3 border-b border-slate-100 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="history" class="w-4 h-4 text-purple-600"></i>
+              <span class="text-sm font-black text-slate-800">Historico de Movimentacoes</span>
+              <span id="movBadgeCount" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">0 registros</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="movFiltroTipo" onchange="app.renderMovimentacoesTable()" class="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-slate-50 font-medium text-slate-600">
+                <option value="">Todos os tipos</option>
+                <option value="ENTRADA">So Entradas</option>
+                <option value="SAIDA">So Saidas</option>
+              </select>
+              <button onclick="app.renderMovimentacoesTable()" class="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-slate-100 rounded-lg transition">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+          <div class="overflow-x-auto max-h-72 overflow-y-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-100 sticky top-0">
+                <tr>
+                  <th class="p-3">Data / Hora</th>
+                  <th class="p-3">Produto / Peca</th>
+                  <th class="p-3 text-center">Tipo</th>
+                  <th class="p-3 text-center">Qtd</th>
+                  <th class="p-3">Motivo / OS</th>
+                  <th class="p-3">Responsavel</th>
+                </tr>
+              </thead>
+              <tbody id="movimentacoesTableBody" class="divide-y divide-slate-100 font-medium">
+                <tr><td colspan="6" class="p-6 text-center text-slate-400">Nenhuma movimentacao registrada ainda.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <!-- ===================================================================
@@ -2044,6 +2082,27 @@
               <div>
                 <label class="block font-semibold text-slate-700 mb-1">Previsão de Conclusão</label>
                 <input id="osEstimatedDate" type="date" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+              </div>
+            </div>
+
+            <!-- SELECAO DE PECA DO ESTOQUE -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-100">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <i data-lucide="package" class="w-3.5 h-3.5 text-purple-500"></i>
+                  Peca Utilizada (do Estoque)
+                </label>
+                <select id="osPecaSelect" onchange="app.onPecaOSChange()" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-800">
+                  <option value="">Selecionar peca do estoque</option>
+                </select>
+                <p id="osPecaEstoqueInfo" class="text-[10px] text-slate-400 mt-1 hidden">
+                  Saldo: <span id="osPecaSaldo" class="font-bold text-emerald-600">0</span> un.
+                </p>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Quantidade da Peca</label>
+                <input id="osPecaQtd" type="number" min="1" value="1" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-semibold">
+                <p class="text-[10px] text-slate-400 mt-1">Baixa automatica no estoque ao salvar.</p>
               </div>
             </div>
           </div>
