@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v18-final-audit';
+const CACHE_NAME = 'chcell-pro-v19-sync-fix';
 const ASSETS = [
   './',
   './index.html',

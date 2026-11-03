@@ -10,6 +10,19 @@ const SUPABASE_ANON = 'sb_publishable_wyBsvwcafNB5vqpWUTFzeA_ZmZgyldd';
 const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Gerador universal de UUID v4 compatível com Postgres/Supabase
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+window.generateUUID = generateUUID;
+
 // =========================================================================
 // 1. EVENT BUS (Comunicação Reativa Entre Telas na SPA)
 // =========================================================================
@@ -77,13 +90,24 @@ const DataService = {
       state.persistAll();
     }
 
-    // 2. Persistência centralizada no Supabase se disponível
+    // 2. Persistência centralizada no Supabase (tabela correta: estoque_produtos)
     if (db) {
       try {
-        const { data: serverProd } = await db.from('produtos').select('quantidade').eq('id', produtoId).single();
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(produtoId);
+        let query = db.from('estoque_produtos').select('quantidade');
+        if (isUuid) {
+          query = query.eq('id', produtoId);
+        } else {
+          query = query.eq('nome', prod?.nome || produtoId);
+        }
+        const { data: serverProd } = await query.maybeSingle();
         if (serverProd) {
           const novaQtd = Math.max(0, (serverProd.quantidade || 0) - quantidadeUtilizada);
-          await db.from('produtos').update({ quantidade: novaQtd }).eq('id', produtoId);
+          if (isUuid) {
+            await db.from('estoque_produtos').update({ quantidade: novaQtd, updated_at: new Date().toISOString() }).eq('id', produtoId);
+          } else {
+            await db.from('estoque_produtos').update({ quantidade: novaQtd, updated_at: new Date().toISOString() }).eq('nome', prod?.nome || produtoId);
+          }
         }
       } catch (e) {
         console.warn('[DataService] Erro ao baixar estoque no Supabase:', e);
@@ -608,15 +632,46 @@ const app = {
         }));
       }
 
-      // 2. Estoque
-      const { data: prodData } = await db.from('estoque_produtos').select('*').order('nome');
-      if (prodData && prodData.length) {
-        state.products = prodData.map(p => ({
-          ...p,
-          preco: Number(p.preco || 0),
-          custo: Number(p.custo || 0),
-          quantidade: Number(p.quantidade || 0)
-        }));
+      // 2. Estoque (Merge Seguro - Preserva produtos cadastrados localmente e replica para nuvem)
+      try {
+        const { data: prodData, error: prodErr } = await db.from('estoque_produtos').select('*').order('nome');
+        if (prodErr) throw prodErr;
+        if (Array.isArray(prodData)) {
+          const mergedProducts = [...prodData.map(p => ({
+            ...p,
+            preco: Number(p.preco || 0),
+            custo: Number(p.custo || 0),
+            quantidade: Number(p.quantidade || 0)
+          }))];
+
+          if (Array.isArray(state.products)) {
+            for (const lp of state.products) {
+              const jaExiste = mergedProducts.some(sp => sp.id === lp.id || (sp.nome && lp.nome && sp.nome.toLowerCase().trim() === lp.nome.toLowerCase().trim()));
+              if (!jaExiste) {
+                mergedProducts.push(lp);
+                // Replica produto local pendente para a nuvem
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lp.id);
+                const insPayload = {
+                  id: isUuid ? lp.id : generateUUID(),
+                  nome: lp.nome,
+                  categoria: lp.categoria || 'Geral',
+                  sku: lp.sku || null,
+                  custo: Number(lp.custo || 0),
+                  preco: Number(lp.preco || 0),
+                  quantidade: Number(lp.quantidade || 0),
+                  minimo: Number(lp.minimo || 2),
+                  icone: lp.icone || 'package'
+                };
+                db.from('estoque_produtos').insert(insPayload).then(({ data }) => {
+                  if (data && data[0]) lp.id = data[0].id;
+                }).catch(() => {});
+              }
+            }
+          }
+          if (mergedProducts.length) state.products = mergedProducts;
+        }
+      } catch (e) {
+        console.warn('Supabase estoque sync:', e);
       }
 
       // 3. Fornecedores (Merge Seguro - Preserva fornecedores cadastrados localmente)
@@ -2810,7 +2865,7 @@ Qualquer dúvida estamos à disposição!`;
     document.getElementById('modalProduto').classList.add('hidden');
   },
 
-  handleSaveProduct(e) {
+  async handleSaveProduct(e) {
     if (e) e.preventDefault();
     const id = document.getElementById('prodEditId').value;
     const nome = document.getElementById('prodNome').value.trim();
@@ -2819,14 +2874,69 @@ Qualquer dúvida estamos à disposição!`;
     const custo = parseFloat(document.getElementById('prodCusto').value) || 0;
     const preco = parseFloat(document.getElementById('prodPreco').value) || 0;
     const minimo = parseInt(document.getElementById('prodMinimo').value || '2', 10);
+    const qtdInicial = parseInt(document.getElementById('prodQtd').value || '0', 10);
 
     if (!nome) {
       alert('Informe o nome do produto.');
       return;
     }
 
+    // 1. OBRIGATÓRIO: Validação com Supabase com bloco try/catch bloqueante
+    // Não atualiza nem fecha a tela caso o banco rejeite
+    let savedUuid = null;
+    if (db) {
+      try {
+        if (id) {
+          // Edição no Supabase
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+          const updatePayload = {
+            nome,
+            categoria,
+            sku: sku || null,
+            custo,
+            preco,
+            minimo,
+            updated_at: new Date().toISOString()
+          };
+          let updateRes;
+          if (isUuid) {
+            updateRes = await db.from('estoque_produtos').update(updatePayload).eq('id', id).select();
+          } else {
+            updateRes = await db.from('estoque_produtos').update(updatePayload).eq('nome', nome).select();
+          }
+          if (updateRes.error) {
+            throw new Error(`Falha no Supabase ao atualizar produto: ${updateRes.error.message || updateRes.error.details || 'Erro desconhecido'}`);
+          }
+        } else {
+          // Inserção no Supabase (gera UUID válido)
+          const newUuid = generateUUID();
+          const insertPayload = {
+            id: newUuid,
+            nome,
+            categoria: categoria || 'Geral',
+            sku: sku || null,
+            custo,
+            preco,
+            quantidade: Math.max(0, qtdInicial),
+            minimo,
+            icone: 'package',
+            created_at: new Date().toISOString()
+          };
+          const { data, error } = await db.from('estoque_produtos').insert([insertPayload]).select();
+          if (error) {
+            throw new Error(`Falha no Supabase ao cadastrar produto: ${error.message || error.details || 'Erro ao gravar no banco'}`);
+          }
+          savedUuid = data && data[0] ? data[0].id : newUuid;
+        }
+      } catch (err) {
+        console.error('[Estoque] Erro no Supabase:', err);
+        alert(`❌ ERRO AO SALVAR PRODUTO NO BANCO:\n\n${err.message}\n\nA operação foi cancelada e os dados não foram salvos.`);
+        return; // BLOQUEIA: não fecha o modal nem adiciona falso sucesso
+      }
+    }
+
+    // 2. Se o Supabase confirmou ou se estiver offline sem conexão configurada:
     if (id) {
-      // Editar existente
       const prod = state.products.find(x => x.id === id);
       if (prod) {
         prod.nome = nome;
@@ -2837,10 +2947,9 @@ Qualquer dúvida estamos à disposição!`;
         prod.minimo = minimo;
       }
     } else {
-      // Novo produto
-      const qtdInicial = parseInt(document.getElementById('prodQtd').value || '0', 10);
+      const finalId = savedUuid || ('prod_' + Date.now());
       const newProd = {
-        id: 'prod_' + Date.now(),
+        id: finalId,
         nome,
         categoria,
         sku,
@@ -2852,22 +2961,23 @@ Qualquer dúvida estamos à disposição!`;
       };
       state.products.unshift(newProd);
 
-      // Registra entrada inicial
+      // Registra movimentação de entrada inicial se houver
       if (qtdInicial > 0) {
-        if (!Array.isArray(state.estoqueMovimentacoes)) state.estoqueMovimentacoes = [];
-        state.estoqueMovimentacoes.unshift({
-          id: 'mov_' + Date.now(),
-          produto_id: newProd.id,
-          tipo: 'entrada',
+        this.registrarMovimentacao({
+          produtoId: newProd.id,
+          produtoNome: newProd.nome,
+          tipo: 'ENTRADA',
           quantidade: qtdInicial,
-          motivo: 'Estoque inicial no cadastro do produto',
-          created_at: new Date().toISOString()
+          motivo: 'Estoque inicial no cadastro do produto'
         });
       }
     }
 
     state.persistAll();
     this.closeProductModal();
+    this.renderAll();
+    alert('✓ Produto salvo com sucesso no estoque!');
+  },
     this.renderAll();
     alert('Produto salvo com sucesso no estoque!');
   },
@@ -2939,14 +3049,20 @@ Qualquer dúvida estamos à disposição!`;
 
     state.persistAll();
 
-    // Sincroniza produto e movimentação no Supabase centralizado
+    // Sincroniza produto e movimentação no Supabase centralizado (tabela correta: estoque_produtos)
     if (db) {
-      db.from('produtos').update({ quantidade: prod.quantidade }).eq('id', prod.id).catch(e => console.warn(e));
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(prod.id);
+      if (isUuid) {
+        db.from('estoque_produtos').update({ quantidade: prod.quantidade, updated_at: new Date().toISOString() }).eq('id', prod.id).catch(e => console.warn(e));
+      } else {
+        db.from('estoque_produtos').update({ quantidade: prod.quantidade, updated_at: new Date().toISOString() }).eq('nome', prod.nome).catch(e => console.warn(e));
+      }
+
       db.from('estoque_movimentacoes').insert([{
-        produto_id: prod.id,
+        produto_id: isUuid ? prod.id : null,
         tipo: tipo.toUpperCase(),
         quantidade: qtd,
-        motivo,
+        motivo: motivo || `Movimentação manual (${tipo})`,
         responsavel: state.currentUser?.email || state.currentUser?.nome || 'Admin',
         created_at: new Date().toISOString()
       }]).catch(e => console.warn(e));
@@ -2962,7 +3078,7 @@ Qualquer dúvida estamos à disposição!`;
     alert(`Movimentação registrada com sucesso!\n${qtd} unidade(s) ${acaoTexto}.\nNovo saldo de ${prod.nome}: ${prod.quantidade} un.`);
   },
 
-  deleteProduct(id) {
+  async deleteProduct(id) {
     const prod = state.products.find(p => p.id === id);
     if (!prod) return;
 
@@ -2970,11 +3086,28 @@ Qualquer dúvida estamos à disposição!`;
       return;
     }
 
+    if (db) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        if (isUuid) {
+          const { error } = await db.from('estoque_produtos').delete().eq('id', id);
+          if (error) throw error;
+        } else {
+          const { error } = await db.from('estoque_produtos').delete().eq('nome', prod.nome);
+          if (error) throw error;
+        }
+      } catch (e) {
+        console.warn('Erro ao excluir produto no Supabase:', e);
+        alert(`❌ Não foi possível excluir o produto no banco de dados:\n${e.message || 'Erro de conexão'}`);
+        return;
+      }
+    }
+
     state.products = state.products.filter(p => p.id !== id);
     state.cart = state.cart.filter(c => c.productId !== id);
     state.persistAll();
     this.renderAll();
-    alert('Produto excluído com sucesso.');
+    alert('✓ Produto excluído com sucesso.');
   },
 
   // =========================================================================
@@ -5186,45 +5319,47 @@ const fornecedoresManager = {
 
     const payload = { nome, marca, especialidade, whatsapp, telefone, endereco, site, observacoes };
 
-    try {
-      if (id) {
-        const idx = state.fornecedores.findIndex(x => x.id === id);
-        if (idx !== -1) {
-          state.fornecedores[idx] = { ...state.fornecedores[idx], ...payload };
-        }
-        if (db) {
-          try {
-            await db.from('fornecedores').update(payload).eq('id', id);
-          } catch (e) {
-            console.warn('Supabase fornecedores update:', e);
+    // 1. OBRIGATÓRIO: Gravação com Supabase em bloco try/catch bloqueante
+    // Bloqueia qualquer atualização visual se o banco falhar
+    let savedId = id;
+    if (db) {
+      try {
+        if (id) {
+          const { error } = await db.from('fornecedores').update(payload).eq('id', id);
+          if (error) {
+            throw new Error(`Falha ao atualizar fornecedor no Supabase: ${error.message || error.details || 'Erro desconhecido'}`);
+          }
+        } else {
+          savedId = 'forn_' + Date.now();
+          const insObj = { id: savedId, ...payload, created_at: new Date().toISOString() };
+          if (state.currentUser?.id) insObj.user_id = String(state.currentUser.id);
+          const { error } = await db.from('fornecedores').insert([insObj]);
+          if (error) {
+            throw new Error(`Falha ao cadastrar fornecedor no Supabase: ${error.message || error.details || 'Erro ao gravar no banco'}`);
           }
         }
-      } else {
-        const newId = 'forn_' + Date.now();
-        const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
-        state.fornecedores.unshift(novo);
-        if (db) {
-          try {
-            const insObj = { id: newId, ...payload };
-            if (state.currentUser?.id) insObj.user_id = String(state.currentUser.id);
-            await db.from('fornecedores').insert(insObj);
-          } catch (e) {
-            console.warn('Supabase fornecedores insert:', e);
-          }
-        }
+      } catch (err) {
+        console.error('[Fornecedores] Erro no Supabase:', err);
+        alert(`❌ ERRO AO SALVAR FORNECEDOR NO BANCO:\n\n${err.message}\n\nA operação foi cancelada e os dados não foram salvos.`);
+        return; // BLOQUEIA: impede o falso sucesso visual
       }
-
-      state.persistAll();
-      this.closeModal();
-      this.render();
-      alert('✓ Fornecedor salvo com sucesso!');
-    } catch (err) {
-      console.warn('Erro ao salvar fornecedor:', err);
-      state.persistAll();
-      this.closeModal();
-      this.render();
-      alert('✓ Fornecedor salvo localmente!');
     }
+
+    // 2. Só atualiza a tela e o estado local após confirmação do Supabase
+    if (id) {
+      const idx = state.fornecedores.findIndex(x => x.id === id);
+      if (idx !== -1) {
+        state.fornecedores[idx] = { ...state.fornecedores[idx], ...payload };
+      }
+    } else {
+      const novo = { id: savedId || ('forn_' + Date.now()), ...payload, created_at: new Date().toISOString() };
+      state.fornecedores.unshift(novo);
+    }
+
+    state.persistAll();
+    this.closeModal();
+    this.render();
+    alert('✓ Fornecedor salvo com sucesso no banco de dados!');
   },
 
   async delete(id) {
@@ -5232,18 +5367,21 @@ const fornecedoresManager = {
     if (!f) return;
     if (!confirm(`Deseja realmente remover o fornecedor "${f.nome}"?`)) return;
 
-    state.fornecedores = state.fornecedores.filter(x => x.id !== id);
-    state.persistAll();
-
     if (db) {
       try {
-        await db.from('fornecedores').delete().eq('id', id);
+        const { error } = await db.from('fornecedores').delete().eq('id', id);
+        if (error) throw error;
       } catch (e) {
-        console.warn('Erro ao excluir no Supabase:', e);
+        console.error('Erro ao excluir no Supabase:', e);
+        alert(`❌ Erro ao excluir fornecedor no banco:\n${e.message || 'Erro de conexão'}`);
+        return;
       }
     }
 
+    state.fornecedores = state.fornecedores.filter(x => x.id !== id);
+    state.persistAll();
     this.render();
+    alert('✓ Fornecedor excluído com sucesso.');
   }
 };
 window.fornecedoresManager = fornecedoresManager;
