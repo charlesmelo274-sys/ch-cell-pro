@@ -23,6 +23,32 @@ function generateUUID() {
 }
 window.generateUUID = generateUUID;
 
+// Obtém um user_id válido do proprietário/administrador para tabelas com NOT NULL
+async function getValidUserId() {
+  if (state.currentUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.currentUser.id)) {
+    return state.currentUser.id;
+  }
+  if (db) {
+    try {
+      const { data: sessData } = await db.auth.getSession();
+      if (sessData?.session?.user?.id) {
+        state.currentUser = state.currentUser || {};
+        state.currentUser.id = sessData.session.user.id;
+        return sessData.session.user.id;
+      }
+    } catch {}
+    try {
+      const { data: loja } = await db.from('ch_lojas').select('proprietario_id').limit(1).maybeSingle();
+      if (loja?.proprietario_id) {
+        if (state.currentUser) state.currentUser.id = loja.proprietario_id;
+        return loja.proprietario_id;
+      }
+    } catch {}
+  }
+  return null;
+}
+window.getValidUserId = getValidUserId;
+
 // =========================================================================
 // 1. EVENT BUS (Comunicação Reativa Entre Telas na SPA)
 // =========================================================================
@@ -2926,6 +2952,10 @@ Qualquer dúvida estamos à disposição!`;
             minimo,
             created_at: new Date().toISOString()
           };
+          const validUserId = await getValidUserId();
+          if (validUserId) {
+            insertPayload.user_id = validUserId;
+          }
           const { data, error } = await db.from('estoque_produtos').insert([insertPayload]).select();
           if (error) {
             throw new Error(`Falha no Supabase ao cadastrar produto: ${error.message || error.details || 'Erro ao gravar no banco'}`);
@@ -5356,8 +5386,9 @@ const fornecedoresManager = {
           // Gera obrigatoriamente UUID válido compatível com coluna UUID do PostgreSQL
           savedId = generateUUID();
           const insObj = { id: savedId, ...payload, created_at: new Date().toISOString() };
-          if (state.currentUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.currentUser.id)) {
-            insObj.user_id = state.currentUser.id;
+          const validUserId = await getValidUserId();
+          if (validUserId) {
+            insObj.user_id = validUserId;
           }
           const { data, error } = await db.from('fornecedores').insert([insObj]).select();
           if (error) {

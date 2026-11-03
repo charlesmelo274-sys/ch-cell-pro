@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS public.estoque_produtos (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE IF EXISTS public.estoque_produtos ADD COLUMN IF NOT EXISTS icone TEXT DEFAULT 'package';
+ALTER TABLE IF EXISTS public.estoque_produtos ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE IF EXISTS public.estoque_produtos ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE IF EXISTS public.fornecedores ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE IF EXISTS public.estoque_produtos ALTER COLUMN user_id SET DEFAULT auth.uid();
+ALTER TABLE IF EXISTS public.fornecedores ALTER COLUMN user_id SET DEFAULT auth.uid();
 
 -- 3. Garantir existência da tabela estoque_movimentacoes
 CREATE TABLE IF NOT EXISTS public.estoque_movimentacoes (
