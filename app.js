@@ -659,8 +659,7 @@ const app = {
                   custo: Number(lp.custo || 0),
                   preco: Number(lp.preco || 0),
                   quantidade: Number(lp.quantidade || 0),
-                  minimo: Number(lp.minimo || 2),
-                  icone: lp.icone || 'package'
+                  minimo: Number(lp.minimo || 2)
                 };
                 db.from('estoque_produtos').insert(insPayload).then(({ data }) => {
                   if (data && data[0]) lp.id = data[0].id;
@@ -2925,7 +2924,6 @@ Qualquer dúvida estamos à disposição!`;
             preco,
             quantidade: Math.max(0, qtdInicial),
             minimo,
-            icone: 'package',
             created_at: new Date().toISOString()
           };
           const { data, error } = await db.from('estoque_produtos').insert([insertPayload]).select();

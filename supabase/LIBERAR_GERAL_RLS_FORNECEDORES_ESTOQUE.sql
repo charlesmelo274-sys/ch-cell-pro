@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS public.estoque_produtos (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+ALTER TABLE IF EXISTS public.estoque_produtos ADD COLUMN IF NOT EXISTS icone TEXT DEFAULT 'package';
 
 -- 3. Garantir existência da tabela estoque_movimentacoes
 CREATE TABLE IF NOT EXISTS public.estoque_movimentacoes (

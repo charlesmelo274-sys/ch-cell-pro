@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v23-auth-bg';
+const CACHE_NAME = 'chcell-pro-v24-icone-fix';
 const ASSETS = [
   './',
   './index.html',
