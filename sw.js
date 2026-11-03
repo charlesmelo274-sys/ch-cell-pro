@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v22-uuid-fix';
+const CACHE_NAME = 'chcell-pro-v23-auth-bg';
 const ASSETS = [
   './',
   './index.html',

@@ -2936,7 +2936,11 @@ Qualquer dúvida estamos à disposição!`;
         }
       } catch (err) {
         console.error('[Estoque] Erro no Supabase:', err);
-        alert(`❌ ERRO AO SALVAR PRODUTO NO BANCO:\n\n${err.message}\n\nA operação foi cancelada e os dados não foram salvos.`);
+        const isRls = (err.message || '').includes('row-level security') || err.code === '42501';
+        const rlsHelp = isRls 
+          ? '\n\n💡 DICA: Execute o script SQL no Supabase para liberar as políticas de RLS.' 
+          : '';
+        alert(`❌ ERRO AO SALVAR PRODUTO NO BANCO:\n\n${err.message}${rlsHelp}\n\nA operação foi cancelada e os dados não foram salvos.`);
         return; // BLOQUEIA: não fecha o modal nem adiciona falso sucesso
       }
     }
@@ -3832,7 +3836,19 @@ const authManager = {
     if (typeof equipeManager !== 'undefined' && equipeManager.loadAccessData) {
       equipeManager.loadAccessData();
     }
-    if (db) app.syncWithSupabase();
+    if (db) {
+      db.auth.signInWithPassword({ email: MASTER_ADMIN_EMAIL, password: MASTER_ADMIN_PASS })
+        .then(({ data, error }) => {
+          if (!error && data?.session?.user) {
+            state.currentUser = data.session.user;
+          }
+          app.syncWithSupabase();
+        })
+        .catch(e => {
+          console.warn('Supabase auth background:', e);
+          app.syncWithSupabase();
+        });
+    }
   },
 
   async checkSession(session) {
@@ -5353,7 +5369,11 @@ const fornecedoresManager = {
         }
       } catch (err) {
         console.error('[Fornecedores] Erro no Supabase:', err);
-        alert(`❌ ERRO AO SALVAR FORNECEDOR NO BANCO:\n\n${err.message}\n\nA operação foi cancelada e os dados não foram salvos.`);
+        const isRls = (err.message || '').includes('row-level security') || err.code === '42501';
+        const rlsHelp = isRls 
+          ? '\n\n💡 DICA: Execute o script SQL no Supabase para liberar as políticas de RLS.' 
+          : '';
+        alert(`❌ ERRO AO SALVAR FORNECEDOR NO BANCO:\n\n${err.message}${rlsHelp}\n\nA operação foi cancelada e os dados não foram salvos.`);
         return; // BLOQUEIA: impede o falso sucesso visual
       }
     }
