@@ -126,16 +126,6 @@ const DataService = {
       }
     }
 
-    // Suporte para peça utilizada: aceita ID numérico (inteiro) ou UUID
-    if (osPayload.peca_id) {
-      const pId = String(osPayload.peca_id).trim();
-      if (/^\d+$/.test(pId)) {
-        payload.peca_id = parseInt(pId, 10);
-      } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pId)) {
-        payload.peca_id = pId;
-      }
-    }
-
     if (osPayload.observacoes) {
       payload.observacoes = osPayload.observacoes;
     }
@@ -150,48 +140,100 @@ const DataService = {
       }
     }
 
-    let res;
-    if (!isNew && isUuid) {
-      res = await client.from('ordens_servico').update(payload).eq('id', editId).select();
-    } else if (!isNew && osPayload.numero) {
-      res = await client.from('ordens_servico').update(payload).eq('numero', osPayload.numero).select();
-    } else {
-      if (editId && isUuid) payload.id = editId;
-      res = await client.from('ordens_servico').insert([payload]).select();
+    // Executa operação de gravação com recuperação automática de schema
+    const executeQuery = async () => {
+      let r;
+      if (!isNew && isUuid) {
+        r = await client.from('ordens_servico').update(payload).eq('id', editId).select();
+      } else if (!isNew && osPayload.numero) {
+        r = await client.from('ordens_servico').update(payload).eq('numero', osPayload.numero).select();
+      } else {
+        if (editId && isUuid) payload.id = editId;
+        r = await client.from('ordens_servico').insert([payload]).select();
+      }
 
-      // Recuperação inteligente se 'numero' falhar por ser BIGINT / IDENTITY no PostgreSQL (Erro 22P02 ou 428C9)
-      if (res.error && (
-        res.error.code === '22P02' ||
-        res.error.code === '428C9' ||
-        (res.error.message || '').includes('bigint') ||
-        (res.error.message || '').includes('integer') ||
-        (res.error.message || '').includes('identity column') ||
-        (res.error.message || '').includes('GENERATED ALWAYS') ||
-        (res.error.message || '').includes('numero')
+      // Auto-recuperação 1: Se 'numero' falhar por ser BIGINT ou IDENTITY no Postgres
+      if (r.error && (
+        r.error.code === '22P02' ||
+        r.error.code === '428C9' ||
+        (r.error.message || '').includes('bigint') ||
+        (r.error.message || '').includes('integer') ||
+        (r.error.message || '').includes('identity column') ||
+        (r.error.message || '').includes('GENERATED ALWAYS') ||
+        (r.error.message || '').includes('numero')
       )) {
-        console.warn('[DataService] A coluna numero rejeitou valor alfanumérico ou é bigint/identity no Postgres; inserindo sem a coluna numero para auto-increment...');
+        console.warn('[DataService] A coluna numero rejeitou valor; tentando operação sem a coluna numero...');
         delete payload.numero;
-        res = await client.from('ordens_servico').insert([payload]).select();
+        if (!isNew && isUuid) {
+          r = await client.from('ordens_servico').update(payload).eq('id', editId).select();
+        } else if (!isNew && osPayload.numero) {
+          r = await client.from('ordens_servico').update(payload).eq('numero', osPayload.numero).select();
+        } else {
+          r = await client.from('ordens_servico').insert([payload]).select();
+        }
       }
 
-      // Se falhar porque a coluna peca_id não existe na tabela ordens_servico
-      if (res.error && (res.error.message || '').includes('peca_id')) {
-        delete payload.peca_id;
-        res = await client.from('ordens_servico').insert([payload]).select();
+      // Auto-recuperação 2: Se alguma coluna não existir na tabela ordens_servico (ex: peca_id, funcionario_id)
+      if (r.error && (r.error.message || '').includes('Could not find the')) {
+        const match = (r.error.message || '').match(/Could not find the '([^']+)' column/i);
+        if (match && match[1]) {
+          const missingCol = match[1];
+          console.warn(`[DataService] Coluna '${missingCol}' ausente em ordens_servico; removendo e repetindo operação...`);
+          delete payload[missingCol];
+          if (!isNew && isUuid) {
+            r = await client.from('ordens_servico').update(payload).eq('id', editId).select();
+          } else if (!isNew && osPayload.numero) {
+            r = await client.from('ordens_servico').update(payload).eq('numero', osPayload.numero).select();
+          } else {
+            r = await client.from('ordens_servico').insert([payload]).select();
+          }
+        }
       }
 
-      // Se falhar porque a coluna funcionario_id não existe ou tipo incompatível
-      if (res.error && (res.error.message || '').includes('funcionario_id')) {
-        delete payload.funcionario_id;
-        res = await client.from('ordens_servico').insert([payload]).select();
-      }
-    }
+      return r;
+    };
+
+    const res = await executeQuery();
 
     if (res.error) {
       console.error('[DataService.salvarOS] Erro retornado pelo Supabase:', res.error);
       throw res.error;
     }
     return res;
+  },
+
+  async vincularPecaOS(osId, pecaId, quantidade = 1, custo = 0) {
+    if (!osId || !pecaId) return;
+    const client = getDb();
+    if (!client) return;
+    try {
+      const isOsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osId);
+      const isPecaUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pecaId);
+
+      // Limpa vínculo anterior dessa OS na tabela os_pecas_estoque para evitar duplicidade
+      try {
+        if (isOsUuid) {
+          await client.from('os_pecas_estoque').delete().eq('os_id', osId);
+        }
+      } catch (eDel) {}
+
+      const relPayload = {
+        id: generateUUID(),
+        os_id: isOsUuid ? osId : null,
+        peca_id: isPecaUuid ? pecaId : null,
+        produto_id: isPecaUuid ? pecaId : null,
+        quantidade: Number(quantidade) || 1,
+        custo_unitario: Number(custo) || 0,
+        created_at: new Date().toISOString()
+      };
+
+      const { error: insErr } = await client.from('os_pecas_estoque').insert([relPayload]);
+      if (insErr) {
+        console.warn('[DataService.vincularPecaOS] Aviso ao registrar em os_pecas_estoque:', insErr.message);
+      }
+    } catch (err) {
+      console.warn('[DataService.vincularPecaOS] Tabela os_pecas_estoque não disponível ou erro:', err);
+    }
   },
 
   async atualizarStatusOS(osId, novoStatus) {
@@ -1661,15 +1703,22 @@ const app = {
           payloadSupabase.funcionario_id = osData.funcionario_id;
         }
 
-        if (osData.peca_id) {
-          payloadSupabase.peca_id = osData.peca_id;
-        }
+        // A peça utilizada fica preservada com segurança em checklist_checkin (JSONB) e na tabela relacional os_pecas_estoque
 
         const resSupabase = await DataService.salvarOS(payloadSupabase, isNew, editId);
+        let finalOsId = editId;
         if (resSupabase?.data && resSupabase.data[0]) {
           const row = resSupabase.data[0];
-          if (row.id) osData.id = row.id;
+          if (row.id) {
+            osData.id = row.id;
+            finalOsId = row.id;
+          }
           if (row.numero != null) osData.numero = String(row.numero);
+        }
+
+        // Vincula a peça utilizada na tabela relacional os_pecas_estoque
+        if (osData.peca_id && finalOsId) {
+          await DataService.vincularPecaOS(finalOsId, osData.peca_id, osData.peca_quantidade, osData.custo_peca);
         }
       } catch (err) {
         console.error('[handleSaveOS] Erro ao salvar OS no Supabase:', err);
@@ -3240,7 +3289,16 @@ Qualquer dúvida estamos à disposição!`;
             user_id: validUserId,
             created_at: new Date().toISOString()
           };
-          const { data, error } = await client.from('estoque_produtos').insert([insertPayload]).select();
+          let { data, error } = await client.from('estoque_produtos').insert([insertPayload]).select();
+          // Auto-recuperação: se a coluna user_id não existir na tabela estoque_produtos
+          if (error && ((error.message || '').includes('user_id') && (error.message || '').includes('schema cache'))) {
+            delete insertPayload.user_id;
+            const retry = await client.from('estoque_produtos').insert([insertPayload]).select();
+            if (!retry.error) {
+              data = retry.data;
+              error = null;
+            }
+          }
           if (error) {
             console.error('[handleSaveProduct] Erro ao cadastrar produto no Supabase:', error);
             throw new Error(`Falha no Supabase ao cadastrar produto: ${error.message || error.details || 'Erro ao gravar no banco'}`);
@@ -5784,7 +5842,18 @@ const fornecedoresManager = {
           savedId = generateUUID();
           const validUserId = (await getValidUserId()) || MASTER_USER_ID;
           const insObj = { id: savedId, ...payload, user_id: validUserId, created_at: new Date().toISOString() };
-          const { data, error } = await client.from('fornecedores').insert([insObj]).select();
+          let { data, error } = await client.from('fornecedores').insert([insObj]).select();
+
+          // Auto-recuperação: se a coluna user_id não existir na tabela fornecedores
+          if (error && ((error.message || '').includes('user_id') && (error.message || '').includes('schema cache'))) {
+            delete insObj.user_id;
+            const retry = await client.from('fornecedores').insert([insObj]).select();
+            if (!retry.error) {
+              data = retry.data;
+              error = null;
+            }
+          }
+
           if (error) {
             console.error('[fornecedoresManager.handleSave] Erro ao cadastrar fornecedor no Supabase:', error);
             throw new Error(`Falha ao cadastrar fornecedor no Supabase: ${error.message || error.details || 'Erro ao gravar no banco'}`);
