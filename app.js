@@ -115,11 +115,39 @@ const DataService = {
       fotos_checkin: Array.isArray(osPayload.fotos_checkin) ? osPayload.fotos_checkin : [],
       user_id: osPayload.user_id || (await getValidUserId()) || MASTER_USER_ID
     };
-    if (osPayload.funcionario_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osPayload.funcionario_id)) {
-      payload.funcionario_id = osPayload.funcionario_id;
+
+    // Suporte para técnico: aceita ID numérico (inteiro) ou UUID
+    if (osPayload.funcionario_id) {
+      const fId = String(osPayload.funcionario_id).trim();
+      if (/^\d+$/.test(fId)) {
+        payload.funcionario_id = parseInt(fId, 10);
+      } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fId)) {
+        payload.funcionario_id = fId;
+      }
     }
+
+    // Suporte para peça utilizada: aceita ID numérico (inteiro) ou UUID
+    if (osPayload.peca_id) {
+      const pId = String(osPayload.peca_id).trim();
+      if (/^\d+$/.test(pId)) {
+        payload.peca_id = parseInt(pId, 10);
+      } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pId)) {
+        payload.peca_id = pId;
+      }
+    }
+
     if (osPayload.observacoes) {
       payload.observacoes = osPayload.observacoes;
+    }
+
+    // Tratamento de segurança para coluna 'numero'
+    if (osPayload.numero) {
+      const numStr = String(osPayload.numero).trim();
+      if (/^\d+$/.test(numStr)) {
+        payload.numero = parseInt(numStr, 10);
+      } else {
+        payload.numero = numStr;
+      }
     }
 
     let res;
@@ -129,13 +157,32 @@ const DataService = {
       res = await client.from('ordens_servico').update(payload).eq('numero', osPayload.numero).select();
     } else {
       if (editId && isUuid) payload.id = editId;
-      if (osPayload.numero) payload.numero = osPayload.numero;
       res = await client.from('ordens_servico').insert([payload]).select();
 
-      // Se a coluna 'numero' for GENERATED ALWAYS (IDENTITY) no PostgreSQL, tenta sem a coluna numero
-      if (res.error && (res.error.code === '428C9' || (res.error.message || '').includes('identity column') || (res.error.message || '').includes('GENERATED ALWAYS'))) {
-        console.warn('[DataService] A coluna numero é identity no Postgres; inserindo sem a coluna numero...');
+      // Recuperação inteligente se 'numero' falhar por ser BIGINT / IDENTITY no PostgreSQL (Erro 22P02 ou 428C9)
+      if (res.error && (
+        res.error.code === '22P02' ||
+        res.error.code === '428C9' ||
+        (res.error.message || '').includes('bigint') ||
+        (res.error.message || '').includes('integer') ||
+        (res.error.message || '').includes('identity column') ||
+        (res.error.message || '').includes('GENERATED ALWAYS') ||
+        (res.error.message || '').includes('numero')
+      )) {
+        console.warn('[DataService] A coluna numero rejeitou valor alfanumérico ou é bigint/identity no Postgres; inserindo sem a coluna numero para auto-increment...');
         delete payload.numero;
+        res = await client.from('ordens_servico').insert([payload]).select();
+      }
+
+      // Se falhar porque a coluna peca_id não existe na tabela ordens_servico
+      if (res.error && (res.error.message || '').includes('peca_id')) {
+        delete payload.peca_id;
+        res = await client.from('ordens_servico').insert([payload]).select();
+      }
+
+      // Se falhar porque a coluna funcionario_id não existe ou tipo incompatível
+      if (res.error && (res.error.message || '').includes('funcionario_id')) {
+        delete payload.funcionario_id;
         res = await client.from('ordens_servico').insert([payload]).select();
       }
     }
@@ -1610,15 +1657,19 @@ const app = {
           payloadSupabase.numero = osData.numero;
         }
 
-        if (osData.funcionario_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osData.funcionario_id)) {
+        if (osData.funcionario_id) {
           payloadSupabase.funcionario_id = osData.funcionario_id;
+        }
+
+        if (osData.peca_id) {
+          payloadSupabase.peca_id = osData.peca_id;
         }
 
         const resSupabase = await DataService.salvarOS(payloadSupabase, isNew, editId);
         if (resSupabase?.data && resSupabase.data[0]) {
           const row = resSupabase.data[0];
           if (row.id) osData.id = row.id;
-          if (row.numero) osData.numero = String(row.numero);
+          if (row.numero != null) osData.numero = String(row.numero);
         }
       } catch (err) {
         console.error('[handleSaveOS] Erro ao salvar OS no Supabase:', err);

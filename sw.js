@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v29-syntax-fix';
+const CACHE_NAME = 'chcell-pro-v30-bigint-fix';
 const ASSETS = [
   './',
   './index.html',
