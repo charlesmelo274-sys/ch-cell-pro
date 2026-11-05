@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v25-userid-fix';
+const CACHE_NAME = 'chcell-pro-v27-structural-db-sync';
 const ASSETS = [
   './',
   './index.html',

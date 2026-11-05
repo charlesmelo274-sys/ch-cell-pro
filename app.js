@@ -7,7 +7,22 @@
 // Supabase Client
 const SUPABASE_URL = 'https://nbqavsaccrlexnjazbdf.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_wyBsvwcafNB5vqpWUTFzeA_ZmZgyldd';
-const db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON) : null;
+const MASTER_USER_ID = '1206a84c-8e81-4c3b-b2dc-0f298d04841b';
+
+function getDb() {
+  if (!window.db && window.supabase) {
+    try {
+      window.db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    } catch (e) {
+      console.error('[Supabase Init Error]:', e);
+    }
+  }
+  return window.db || (window.supabase ? (window.db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON)) : null);
+}
+const db = getDb();
+window.db = db;
+window.getDb = getDb;
+window.MASTER_USER_ID = MASTER_USER_ID;
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Gerador universal de UUID v4 compatível com Postgres/Supabase
@@ -28,9 +43,10 @@ async function getValidUserId() {
   if (state.currentUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.currentUser.id)) {
     return state.currentUser.id;
   }
-  if (db) {
+  const client = getDb();
+  if (client) {
     try {
-      const { data: sessData } = await db.auth.getSession();
+      const { data: sessData } = await client.auth.getSession();
       if (sessData?.session?.user?.id) {
         state.currentUser = state.currentUser || {};
         state.currentUser.id = sessData.session.user.id;
@@ -38,14 +54,14 @@ async function getValidUserId() {
       }
     } catch {}
     try {
-      const { data: loja } = await db.from('ch_lojas').select('proprietario_id').limit(1).maybeSingle();
+      const { data: loja } = await client.from('ch_lojas').select('proprietario_id').limit(1).maybeSingle();
       if (loja?.proprietario_id) {
         if (state.currentUser) state.currentUser.id = loja.proprietario_id;
         return loja.proprietario_id;
       }
     } catch {}
   }
-  return null;
+  return MASTER_USER_ID;
 }
 window.getValidUserId = getValidUserId;
 
@@ -77,32 +93,74 @@ window.AppEvents = AppEvents;
 // =========================================================================
 const DataService = {
   async salvarOS(osPayload, isNew, editId) {
-    if (!db) return null;
-    try {
-      const isUuid = editId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editId);
-      if (!isNew && isUuid) {
-        return await db.from('ordens_servico').update(osPayload).eq('id', editId).select();
-      } else if (!isNew && osPayload.numero) {
-        return await db.from('ordens_servico').update(osPayload).eq('numero', osPayload.numero).select();
-      } else {
-        return await db.from('ordens_servico').insert([osPayload]).select();
-      }
-    } catch (err) {
-      console.warn('[DataService] Erro ao salvar OS no Supabase:', err);
-      return null;
+    const client = getDb();
+    if (!client) throw new Error('Cliente Supabase não está conectado.');
+    const isUuid = editId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editId);
+
+    // Mapeamento estrito: envia exclusivamente colunas existentes na tabela ordens_servico
+    const payload = {
+      cliente_nome: osPayload.cliente_nome,
+      cliente_celular: osPayload.cliente_celular || null,
+      marca: osPayload.marca || null,
+      modelo: osPayload.modelo || null,
+      defeito_relatado: osPayload.defeito_relatado || null,
+      servico: osPayload.servico || null,
+      status: osPayload.status || 'Em Análise',
+      valor: Number(osPayload.valor || 0),
+      valor_pago: Number(osPayload.valor_pago || 0),
+      custo_peca: Number(osPayload.custo_peca || 0),
+      previsao_entrega: osPayload.previsao_entrega || null,
+      data_entrada: osPayload.data_entrada || new Date().toISOString().slice(0, 10),
+      checklist_checkin: osPayload.checklist_checkin || {},
+      fotos_checkin: Array.isArray(osPayload.fotos_checkin) ? osPayload.fotos_checkin : [],
+      user_id: osPayload.user_id || (await getValidUserId()) || MASTER_USER_ID
+    };
+    if (osPayload.funcionario_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osPayload.funcionario_id)) {
+      payload.funcionario_id = osPayload.funcionario_id;
     }
+    if (osPayload.observacoes) {
+      payload.observacoes = osPayload.observacoes;
+    }
+
+    let res;
+    if (!isNew && isUuid) {
+      res = await client.from('ordens_servico').update(payload).eq('id', editId).select();
+    } else if (!isNew && osPayload.numero) {
+      res = await client.from('ordens_servico').update(payload).eq('numero', osPayload.numero).select();
+    } else {
+      if (editId && isUuid) payload.id = editId;
+      if (osPayload.numero) payload.numero = osPayload.numero;
+      res = await client.from('ordens_servico').insert([payload]).select();
+
+      // Se a coluna 'numero' for GENERATED ALWAYS (IDENTITY) no PostgreSQL, tenta sem a coluna numero
+      if (res.error && (res.error.code === '428C9' || (res.error.message || '').includes('identity column') || (res.error.message || '').includes('GENERATED ALWAYS'))) {
+        console.warn('[DataService] A coluna numero é identity no Postgres; inserindo sem a coluna numero...');
+        delete payload.numero;
+        res = await client.from('ordens_servico').insert([payload]).select();
+      }
+    }
+
+    if (res.error) {
+      console.error('[DataService.salvarOS] Erro retornado pelo Supabase:', res.error);
+      throw res.error;
+    }
+    return res;
   },
 
   async atualizarStatusOS(osId, novoStatus) {
-    if (!db) return null;
+    const client = getDb();
+    if (!client) return null;
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osId);
-      const query = db.from('ordens_servico').update({ status: novoStatus, updated_at: new Date().toISOString() });
+      const query = client.from('ordens_servico').update({ status: novoStatus });
       const { data, error } = isUuid ? await query.eq('id', osId).select() : await query.eq('numero', osId).select();
-      if (error) throw error;
+      if (error) {
+        console.error('[DataService.atualizarStatusOS] Erro:', error);
+        throw error;
+      }
       return data;
     } catch (err) {
-      console.warn('[DataService] Erro ao atualizar status no Supabase:', err);
+      console.error('[DataService] Erro ao atualizar status no Supabase:', err);
       return null;
     }
   },
@@ -117,26 +175,33 @@ const DataService = {
     }
 
     // 2. Persistência centralizada no Supabase (tabela correta: estoque_produtos)
-    if (db) {
+    const client = getDb();
+    if (client) {
       try {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(produtoId);
-        let query = db.from('estoque_produtos').select('quantidade');
+        let query = client.from('estoque_produtos').select('quantidade');
         if (isUuid) {
           query = query.eq('id', produtoId);
         } else {
           query = query.eq('nome', prod?.nome || produtoId);
         }
-        const { data: serverProd } = await query.maybeSingle();
-        if (serverProd) {
+        const { data: serverProd, error: selErr } = await query.maybeSingle();
+        if (selErr) {
+          console.error('[DataService.darBaixaEstoque] Erro ao consultar estoque:', selErr);
+        } else if (serverProd) {
           const novaQtd = Math.max(0, (serverProd.quantidade || 0) - quantidadeUtilizada);
+          let updRes;
           if (isUuid) {
-            await db.from('estoque_produtos').update({ quantidade: novaQtd, updated_at: new Date().toISOString() }).eq('id', produtoId);
+            updRes = await client.from('estoque_produtos').update({ quantidade: novaQtd }).eq('id', produtoId);
           } else {
-            await db.from('estoque_produtos').update({ quantidade: novaQtd, updated_at: new Date().toISOString() }).eq('nome', prod?.nome || produtoId);
+            updRes = await client.from('estoque_produtos').update({ quantidade: novaQtd }).eq('nome', prod?.nome || produtoId);
+          }
+          if (updRes?.error) {
+            console.error('[DataService.darBaixaEstoque] Erro ao atualizar quantidade no Supabase:', updRes.error);
           }
         }
       } catch (e) {
-        console.warn('[DataService] Erro ao baixar estoque no Supabase:', e);
+        console.error('[DataService] Erro ao baixar estoque no Supabase:', e);
       }
     }
 
@@ -641,28 +706,81 @@ const app = {
   },
 
   async syncWithSupabase() {
-    if (!db || !state.currentUser) return;
+    const client = getDb();
+    if (!client || !state.currentUser) return;
     try {
       const syncEl = document.getElementById('cloudSyncStatus');
       if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> Sincronizando com Supabase...`;
 
+      const validUserId = (await getValidUserId()) || MASTER_USER_ID;
+
       // 1. Ordens de serviço
-      const { data: osData } = await db.from('ordens_servico').select('*').order('created_at', { ascending: false }).limit(500);
-      if (osData && osData.length) {
-        state.orders = osData.map(o => ({
-          ...o,
-          numero: o.numero || String(o.id).slice(0, 5).toUpperCase(),
-          checklist: o.checklist_checkin?.itens || o.checklist || {},
-          checklist_obs: o.checklist_checkin?.observacoes || o.checklist_obs || '',
-          fotos: Array.isArray(o.fotos_checkin) ? o.fotos_checkin : (o.fotos || [])
-        }));
+      try {
+        const { data: osData, error: osErr } = await client.from('ordens_servico').select('*').order('created_at', { ascending: false }).limit(500);
+        if (osErr) {
+          console.error('[Supabase OS Sync] Erro:', osErr);
+        } else if (osData && osData.length) {
+          state.orders = osData.map(o => {
+            const chk = o.checklist_checkin || {};
+            return {
+              ...o,
+              numero: o.numero || String(o.id).slice(0, 5).toUpperCase(),
+              cor: o.cor || chk.cor || '',
+              senha: o.senha || chk.senha || '',
+              peca_id: chk.peca_id || null,
+              peca_quantidade: chk.peca_quantidade || 1,
+              checklist: chk.itens || o.checklist || {},
+              checklist_obs: chk.observacoes || o.checklist_obs || '',
+              fotos: Array.isArray(o.fotos_checkin) ? o.fotos_checkin : (o.fotos || [])
+            };
+          });
+        }
+      } catch (e) {
+        console.error('[Supabase OS Sync] Falha:', e);
       }
 
-      // 2. Estoque (Merge Seguro - Preserva produtos cadastrados localmente e replica para nuvem)
+      // 2. Clientes (Sincronização Bidirecional)
       try {
-        const { data: prodData, error: prodErr } = await db.from('estoque_produtos').select('*').order('nome');
-        if (prodErr) throw prodErr;
-        if (Array.isArray(prodData)) {
+        const { data: cliData, error: cliErr } = await client.from('clientes').select('*').order('nome');
+        if (cliErr) {
+          console.error('[Supabase Clientes Sync] Erro:', cliErr);
+        } else if (Array.isArray(cliData)) {
+          const mergedCli = [...cliData];
+          if (Array.isArray(state.clientes)) {
+            for (const lc of state.clientes) {
+              const existe = mergedCli.some(sc => sc.id === lc.id || (sc.nome && lc.nome && sc.nome.toLowerCase().trim() === lc.nome.toLowerCase().trim()));
+              if (!existe) {
+                mergedCli.push(lc);
+                const isUuid = lc.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lc.id);
+                const insCli = {
+                  id: isUuid ? lc.id : generateUUID(),
+                  nome: lc.nome,
+                  celular: lc.celular || null,
+                  email: lc.email || null,
+                  endereco: lc.endereco || null,
+                  observacoes: lc.observacoes || null,
+                  user_id: validUserId,
+                  created_at: lc.created_at || new Date().toISOString()
+                };
+                client.from('clientes').insert([insCli]).then(({ data, error }) => {
+                  if (error) console.error('[Supabase Clientes Replica] Erro:', error);
+                  else if (data && data[0]) lc.id = data[0].id;
+                }).catch(err => console.error(err));
+              }
+            }
+          }
+          if (mergedCli.length) state.clientes = mergedCli;
+        }
+      } catch (e) {
+        console.error('[Supabase Clientes Sync] Falha:', e);
+      }
+
+      // 3. Estoque (Merge Seguro - Preserva produtos cadastrados localmente e replica para nuvem)
+      try {
+        const { data: prodData, error: prodErr } = await client.from('estoque_produtos').select('*').order('nome');
+        if (prodErr) {
+          console.error('[Supabase Estoque Sync] Erro:', prodErr);
+        } else if (Array.isArray(prodData)) {
           const mergedProducts = [...prodData.map(p => ({
             ...p,
             preco: Number(p.preco || 0),
@@ -675,7 +793,6 @@ const app = {
               const jaExiste = mergedProducts.some(sp => sp.id === lp.id || (sp.nome && lp.nome && sp.nome.toLowerCase().trim() === lp.nome.toLowerCase().trim()));
               if (!jaExiste) {
                 mergedProducts.push(lp);
-                // Replica produto local pendente para a nuvem
                 const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lp.id);
                 const insPayload = {
                   id: isUuid ? lp.id : generateUUID(),
@@ -685,30 +802,33 @@ const app = {
                   custo: Number(lp.custo || 0),
                   preco: Number(lp.preco || 0),
                   quantidade: Number(lp.quantidade || 0),
-                  minimo: Number(lp.minimo || 2)
+                  minimo: Number(lp.minimo || 2),
+                  user_id: validUserId
                 };
-                db.from('estoque_produtos').insert(insPayload).then(({ data }) => {
-                  if (data && data[0]) lp.id = data[0].id;
-                }).catch(() => {});
+                client.from('estoque_produtos').insert([insPayload]).then(({ data, error }) => {
+                  if (error) console.error('[Supabase Estoque Replica] Erro:', error);
+                  else if (data && data[0]) lp.id = data[0].id;
+                }).catch(err => console.error(err));
               }
             }
           }
           if (mergedProducts.length) state.products = mergedProducts;
         }
       } catch (e) {
-        console.warn('Supabase estoque sync:', e);
+        console.error('[Supabase Estoque Sync] Falha:', e);
       }
 
-      // 3. Fornecedores (Merge Seguro - Preserva fornecedores cadastrados localmente)
+      // 4. Fornecedores (Merge Seguro - Preserva fornecedores cadastrados localmente)
       try {
-        const { data: fornData } = await db.from('fornecedores').select('*').order('nome');
-        if (Array.isArray(fornData)) {
+        const { data: fornData, error: fornErr } = await client.from('fornecedores').select('*').order('nome');
+        if (fornErr) {
+          console.error('[Supabase Fornecedores Sync] Erro:', fornErr);
+        } else if (Array.isArray(fornData)) {
           const mergedForn = [...fornData];
           if (Array.isArray(state.fornecedores)) {
             state.fornecedores.forEach(lf => {
               if (!mergedForn.some(sf => sf.id === lf.id || (sf.nome && lf.nome && sf.nome.toLowerCase().trim() === lf.nome.toLowerCase().trim()))) {
                 mergedForn.push(lf);
-                // Replica para a nuvem Supabase garantindo UUID válido
                 const isUuid = lf.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lf.id);
                 const insForn = {
                   id: isUuid ? lf.id : generateUUID(),
@@ -719,76 +839,82 @@ const app = {
                   telefone: lf.telefone,
                   endereco: lf.endereco,
                   site: lf.site,
-                  observacoes: lf.observacoes
+                  observacoes: lf.observacoes,
+                  user_id: validUserId
                 };
-                db.from('fornecedores').insert([insForn]).then(({ data }) => {
-                  if (data && data[0]) lf.id = data[0].id;
-                }).catch(() => {});
+                client.from('fornecedores').insert([insForn]).then(({ data, error }) => {
+                  if (error) console.error('[Supabase Fornecedores Replica] Erro:', error);
+                  else if (data && data[0]) lf.id = data[0].id;
+                }).catch(err => console.error(err));
               }
             });
           }
           if (mergedForn.length) state.fornecedores = mergedForn;
         }
       } catch (e) {
-        console.warn('Supabase fornecedores sync:', e);
+        console.error('[Supabase Fornecedores Sync] Falha:', e);
       }
 
-      // 4. eBooks & Esquemas (Merge Seguro - Preserva eBooks cadastrados no PC)
+      // 5. eBooks & Esquemas (Merge Seguro - Preserva eBooks cadastrados no PC)
       try {
-        const { data: ebkData } = await db.from('ebooks').select('*').order('created_at', { ascending: false });
-        if (Array.isArray(ebkData)) {
+        const { data: ebkData, error: ebkErr } = await client.from('ebooks').select('*').order('created_at', { ascending: false });
+        if (ebkErr) {
+          console.error('[Supabase eBooks Sync] Erro:', ebkErr);
+        } else if (Array.isArray(ebkData)) {
           const mergedEbooks = [...ebkData];
           if (Array.isArray(state.ebooks)) {
             state.ebooks.forEach(le => {
               if (!mergedEbooks.some(se => se.id === le.id || (se.titulo && le.titulo && se.titulo.toLowerCase().trim() === le.titulo.toLowerCase().trim()))) {
                 mergedEbooks.push(le);
-                // Replica para a nuvem Supabase
                 const isUuid = le.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(le.id);
-                db.from('ebooks').insert({
+                client.from('ebooks').insert([{
                   id: isUuid ? le.id : generateUUID(),
                   titulo: le.titulo,
                   marca: le.marca,
                   modelo: le.modelo,
                   categoria: le.categoria,
                   url: le.url,
-                  descricao: le.descricao
-                }).catch(() => {});
+                  descricao: le.descricao,
+                  user_id: validUserId
+                }]).catch(err => console.error(err));
               }
             });
           }
           if (mergedEbooks.length) state.ebooks = mergedEbooks;
         }
       } catch (e) {
-        console.warn('Supabase ebooks sync:', e);
+        console.error('[Supabase eBooks Sync] Falha:', e);
       }
 
-      // 5. Videoaulas Técnicas (Merge Seguro - Preserva Videoaulas cadastradas no PC)
+      // 6. Videoaulas Técnicas (Merge Seguro - Preserva Videoaulas cadastradas no PC)
       try {
-        const { data: vidData } = await db.from('videoaulas').select('*').order('created_at', { ascending: false });
-        if (Array.isArray(vidData)) {
+        const { data: vidData, error: vidErr } = await client.from('videoaulas').select('*').order('created_at', { ascending: false });
+        if (vidErr) {
+          console.error('[Supabase Videoaulas Sync] Erro:', vidErr);
+        } else if (Array.isArray(vidData)) {
           const mergedVids = [...vidData];
           if (Array.isArray(state.videoaulas)) {
             state.videoaulas.forEach(lv => {
               if (!mergedVids.some(sv => sv.id === lv.id || (sv.titulo && lv.titulo && sv.titulo.toLowerCase().trim() === lv.titulo.toLowerCase().trim()))) {
                 mergedVids.push(lv);
-                // Replica para a nuvem Supabase
                 const isUuid = lv.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lv.id);
-                db.from('videoaulas').insert({
+                client.from('videoaulas').insert([{
                   id: isUuid ? lv.id : generateUUID(),
                   titulo: lv.titulo,
                   marca: lv.marca,
                   modelo: lv.modelo,
                   categoria: lv.categoria,
                   url: lv.url,
-                  descricao: lv.descricao
-                }).catch(() => {});
+                  descricao: lv.descricao,
+                  user_id: validUserId
+                }]).catch(err => console.error(err));
               }
             });
           }
           if (mergedVids.length) state.videoaulas = mergedVids;
         }
       } catch (e) {
-        console.warn('Supabase videoaulas sync:', e);
+        console.error('[Supabase Videoaulas Sync] Falha:', e);
       }
 
       state.persistAll();
@@ -796,8 +922,9 @@ const app = {
 
       if (syncEl) syncEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Conectado ao Supabase`;
     } catch (err) {
-      console.warn('Sincronização em segundo plano:', err);
+      console.error('[Supabase Sync Global] Erro:', err);
     }
+  },
   },
 
   applyStoreConfig() {
@@ -1385,33 +1512,43 @@ const app = {
     document.getElementById('modalOS').classList.add('hidden');
   },
 
-  handleSaveOS(event) {
-    event.preventDefault();
+  async handleSaveOS(event) {
+    if (event) {
+      try { event.preventDefault(); } catch {}
+      try { event.stopPropagation(); } catch {}
+    }
 
-    const editId = document.getElementById('osEditId').value;
+    const editId = (document.getElementById('osEditId')?.value || '').trim();
     const isNew = !editId;
-    const code = isNew ? document.getElementById('osModalCodeBadge').textContent.replace('#', '') : state.orders.find(o => o.id === editId)?.numero;
+    const isUuid = editId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editId);
+    const code = isNew ? (document.getElementById('osModalCodeBadge')?.textContent || '').replace('#', '').trim() : state.orders.find(o => o.id === editId)?.numero;
+
+    const clienteNome = (document.getElementById('osClientName')?.value || '').trim();
+    if (!clienteNome) {
+      alert('Informe o nome do cliente.');
+      return;
+    }
 
     const osData = {
-      id: editId || 'os_' + Date.now(),
-      numero: code,
-      cliente_nome: document.getElementById('osClientName').value.trim(),
-      cliente_celular: document.getElementById('osClientPhone').value.trim(),
-      marca: document.getElementById('osDeviceBrand').value,
-      modelo: document.getElementById('osDeviceModel').value.trim(),
-      cor: document.getElementById('osDeviceColor').value.trim(),
-      senha: document.getElementById('osDevicePass').value.trim(),
-      defeito_relatado: document.getElementById('osDefectReported').value.trim(),
-      servico: document.getElementById('osServiceDesc').value.trim(),
-      status: document.getElementById('osStatusSelect').value,
+      id: editId || generateUUID(),
+      numero: code || ('OS-' + Date.now().toString().slice(-4)),
+      cliente_nome: clienteNome,
+      cliente_celular: (document.getElementById('osClientPhone')?.value || '').trim(),
+      marca: document.getElementById('osDeviceBrand')?.value || '',
+      modelo: (document.getElementById('osDeviceModel')?.value || '').trim(),
+      cor: (document.getElementById('osDeviceColor')?.value || '').trim(),
+      senha: (document.getElementById('osDevicePass')?.value || '').trim(),
+      defeito_relatado: (document.getElementById('osDefectReported')?.value || '').trim(),
+      servico: (document.getElementById('osServiceDesc')?.value || '').trim(),
+      status: document.getElementById('osStatusSelect')?.value || 'Em Análise',
       funcionario_id: document.getElementById('osTechnicianSelect')?.value || null,
-      valor: parseFloat(document.getElementById('osTotalValue').value) || 0,
-      valor_pago: parseFloat(document.getElementById('osPaidValue').value) || 0,
-      previsao_entrega: document.getElementById('osEstimatedDate').value,
+      valor: parseFloat(document.getElementById('osTotalValue')?.value || '0') || 0,
+      valor_pago: parseFloat(document.getElementById('osPaidValue')?.value || '0') || 0,
+      previsao_entrega: document.getElementById('osEstimatedDate')?.value || null,
       peca_id: document.getElementById('osPecaSelect')?.value || null,
       peca_quantidade: parseInt(document.getElementById('osPecaQtd')?.value || '1') || 1,
       checklist: { ...state.activeChecklist },
-      checklist_obs: document.getElementById('osChecklistNotes').value.trim(),
+      checklist_obs: (document.getElementById('osChecklistNotes')?.value || '').trim(),
       fotos: [...state.activePhotos],
       custo_peca: editId ? (state.orders.find(o => o.id === editId)?.custo_peca || 0) : 0,
       data_entrada: editId ? (state.orders.find(o => o.id === editId)?.data_entrada || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10)
@@ -1425,45 +1562,73 @@ const app = {
       }
     }
 
-    if (isNew) {
-      state.orders.unshift(osData);
-    } else {
-      const idx = state.orders.findIndex(o => o.id === editId);
-      if (idx !== -1) state.orders[idx] = osData;
-    }
-
-    state.persistAll();
-
-    // Replica assincronamente para a nuvem Supabase centralizado via DataService
-    if (state.currentUser) {
+    // 1. OBRIGATÓRIO: Gravação no Supabase em bloco try/catch bloqueante
+    // Garante que o banco confirmou antes de alterar a interface
+    const client = getDb();
+    if (client) {
       try {
+        const validUserId = (await getValidUserId()) || MASTER_USER_ID;
         const payloadSupabase = {
-          numero: osData.numero,
           cliente_nome: osData.cliente_nome,
-          cliente_celular: osData.cliente_celular,
-          marca: osData.marca,
-          modelo: osData.modelo,
-          cor: osData.cor,
-          senha: osData.senha,
-          defeito_relatado: osData.defeito_relatado,
-          servico: osData.servico,
+          cliente_celular: osData.cliente_celular || null,
+          marca: osData.marca || null,
+          modelo: osData.modelo || null,
+          defeito_relatado: osData.defeito_relatado || null,
+          servico: osData.servico || null,
           status: osData.status,
           valor: osData.valor,
           valor_pago: osData.valor_pago,
+          custo_peca: osData.custo_peca,
           previsao_entrega: osData.previsao_entrega || null,
-          peca_id: osData.peca_id,
-          peca_quantidade: osData.peca_quantidade,
-          checklist_checkin: { itens: osData.checklist, observacoes: osData.checklist_obs },
-          fotos_checkin: osData.fotos || []
+          data_entrada: osData.data_entrada,
+          // Armazena cor, senha, peca_id e peca_quantidade dentro do JSONB de checklist para segurança total
+          checklist_checkin: {
+            itens: osData.checklist,
+            observacoes: osData.checklist_obs,
+            cor: osData.cor,
+            senha: osData.senha,
+            peca_id: osData.peca_id,
+            peca_quantidade: osData.peca_quantidade
+          },
+          fotos_checkin: osData.fotos || [],
+          user_id: validUserId
         };
+
+        if (osData.numero) {
+          payloadSupabase.numero = osData.numero;
+        }
+
         if (osData.funcionario_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(osData.funcionario_id)) {
           payloadSupabase.funcionario_id = osData.funcionario_id;
         }
-        DataService.salvarOS(payloadSupabase, isNew, editId);
+
+        const resSupabase = await DataService.salvarOS(payloadSupabase, isNew, editId);
+        if (resSupabase?.data && resSupabase.data[0]) {
+          const row = resSupabase.data[0];
+          if (row.id) osData.id = row.id;
+          if (row.numero) osData.numero = String(row.numero);
+        }
       } catch (err) {
-        console.warn('Sync OS com Supabase via DataService:', err);
+        console.error('[handleSaveOS] Erro ao salvar OS no Supabase:', err);
+        const isRls = (err.message || '').includes('row-level security') || err.code === '42501' || err.status === 401;
+        const rlsHelp = isRls 
+          ? '\n\n💡 DICA: Execute o script SQL no Supabase para liberar as políticas de RLS e permissões na tabela ordens_servico.' 
+          : '';
+        alert(`❌ ERRO AO SALVAR ORDEM DE SERVIÇO NO BANCO:\n\n${err.message || err.details || JSON.stringify(err)}${rlsHelp}\n\nA operação foi cancelada e os dados não foram salvos.`);
+        return; // BLOQUEIA: impede o falso sucesso visual
       }
     }
+
+    // 2. Atualização local de estado após confirmação do Supabase
+    if (isNew) {
+      state.orders.unshift(osData);
+    } else {
+      const idx = state.orders.findIndex(o => o.id === editId || (o.numero && o.numero === osData.numero));
+      if (idx !== -1) state.orders[idx] = osData;
+      else state.orders.unshift(osData);
+    }
+
+    state.persistAll();
 
     // Comunica as demais telas da SPA via EventBus que a OS foi salva/atualizada
     AppEvents.emit('OS_ATUALIZADA', { os: osData, isNew });
@@ -1490,7 +1655,7 @@ const app = {
     }
   },
 
-  deleteOS(id) {
+  async deleteOS(id) {
     if (!id) return;
     const os = (state.orders || []).find(o => o.id === id || o.numero === id);
     if (!os) return;
@@ -1499,22 +1664,29 @@ const app = {
       return;
     }
 
-    state.orders = state.orders.filter(o => o.id !== os.id);
-    state.persistAll();
-
-    if (db) {
+    const client = getDb();
+    if (client) {
       try {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(os.id);
+        let delRes;
         if (isUuid) {
-          db.from('ordens_servico').delete().eq('id', os.id).then(() => {}).catch(() => {});
+          delRes = await client.from('ordens_servico').delete().eq('id', os.id);
         } else if (os.numero) {
-          db.from('ordens_servico').delete().eq('numero', os.numero).then(() => {}).catch(() => {});
+          delRes = await client.from('ordens_servico').delete().eq('numero', os.numero);
+        }
+        if (delRes?.error) {
+          console.error('[deleteOS] Erro ao excluir no Supabase:', delRes.error);
+          throw delRes.error;
         }
       } catch (e) {
-        console.warn('Erro ao excluir OS no Supabase:', e);
+        console.error('[deleteOS] Erro ao excluir OS no Supabase:', e);
+        alert(`❌ Erro ao excluir Ordem de Serviço no banco:\n${e.message || 'Erro de conexão'}`);
+        return;
       }
     }
 
+    state.orders = state.orders.filter(o => o.id !== os.id && o.numero !== os.numero);
+    state.persistAll();
     this.closeOSModal();
     this.renderAll();
     alert(`Ordem de Serviço #${os.numero} excluída com sucesso.`);
@@ -2459,7 +2631,7 @@ Qualquer dúvida estamos à disposição!`;
     this.updateCartUI();
   },
 
-  confirmDirectBalcaoSale() {
+  async confirmDirectBalcaoSale() {
     if (!state.cart.length) {
       alert('Adicione pelo menos um produto ao carrinho antes de finalizar.');
       return;
@@ -2486,27 +2658,52 @@ Qualquer dúvida estamos à disposição!`;
       return;
     }
 
-    // 1. ABAIXAR AS PEÇAS NO ESTOQUE (Baixa automática)
-    itemsSummary.forEach(item => {
+    const client = getDb();
+    const validUserId = (await getValidUserId()) || MASTER_USER_ID;
+    const saleUuid = generateUUID();
+
+    // 1. ABAIXAR AS PEÇAS NO ESTOQUE (Baixa automática e movimentações)
+    for (const item of itemsSummary) {
       const prod = state.products.find(p => p.id === item.productId);
       if (prod) {
         prod.quantidade = Math.max(0, prod.quantidade - item.quantity);
       }
-      // Registra movimentação de saída
-      if (!Array.isArray(state.estoqueMovimentacoes)) state.estoqueMovimentacoes = [];
-      state.estoqueMovimentacoes.unshift({
-        id: 'mov_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      const movUuid = generateUUID();
+      const movLocal = {
+        id: movUuid,
         produto_id: item.productId,
         tipo: 'saida',
         quantidade: item.quantity,
         motivo: `Venda de Balcão - Cliente: ${cliente} (${forma})`,
         created_at: new Date().toISOString()
-      });
-    });
+      };
+      if (!Array.isArray(state.estoqueMovimentacoes)) state.estoqueMovimentacoes = [];
+      state.estoqueMovimentacoes.unshift(movLocal);
 
-    // 2. REGISTRAR VENDA
+      // Baixa no Supabase
+      if (client) {
+        try {
+          await DataService.darBaixaEstoque(item.productId, item.quantity, `Venda PDV: ${cliente}`);
+          const isUuid = item.productId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.productId);
+          const { error: movErr } = await client.from('estoque_movimentacoes').insert([{
+            id: movUuid,
+            produto_id: isUuid ? item.productId : null,
+            tipo: 'saida',
+            quantidade: item.quantity,
+            motivo: movLocal.motivo,
+            user_id: validUserId,
+            created_at: movLocal.created_at
+          }]);
+          if (movErr) console.error('[confirmDirectBalcaoSale] Erro ao gravar movimentação no Supabase:', movErr);
+        } catch (mErr) {
+          console.error('[confirmDirectBalcaoSale] Erro na sincronização de estoque:', mErr);
+        }
+      }
+    }
+
+    // 2. REGISTRAR VENDA NO BANCO E LOCALMENTE
     const saleRecord = {
-      id: 'sale_' + Date.now(),
+      id: saleUuid,
       created_at: new Date().toISOString(),
       cliente_nome: cliente,
       forma_pagamento: forma,
@@ -2514,6 +2711,24 @@ Qualquer dúvida estamos à disposição!`;
       custo_total: custoTotal,
       itens: itemsSummary
     };
+
+    if (client) {
+      try {
+        const salePayload = {
+          id: saleUuid,
+          cliente_nome: cliente,
+          forma_pagamento: forma,
+          total: totalVenda,
+          custo_total: custoTotal,
+          user_id: validUserId,
+          created_at: saleRecord.created_at
+        };
+        const { error: saleErr } = await client.from('vendas_balcao').insert([salePayload]);
+        if (saleErr) console.error('[confirmDirectBalcaoSale] Erro ao registrar venda no Supabase:', saleErr);
+      } catch (sErr) {
+        console.error('[confirmDirectBalcaoSale] Falha ao gravar venda:', sErr);
+      }
+    }
 
     if (!Array.isArray(state.sales)) state.sales = [];
     state.sales.unshift(saleRecord);
@@ -2819,8 +3034,9 @@ Qualquer dúvida estamos à disposição!`;
 
   // Registra movimentacao local + Supabase
   async registrarMovimentacao({ produtoId, produtoNome, tipo, quantidade, motivo, osId }) {
+    const movId = generateUUID();
     const mov = {
-      id: 'mov_' + Date.now(),
+      id: movId,
       produto_id: produtoId,
       produto_nome: produtoNome || (state.products || []).find(p => p.id === produtoId)?.nome || produtoId,
       tipo: tipo.toUpperCase(), // 'ENTRADA' ou 'SAIDA'
@@ -2838,19 +3054,25 @@ Qualquer dúvida estamos à disposição!`;
     state.persistAll();
 
     // Persiste no Supabase
-    if (db) {
+    const client = getDb();
+    if (client) {
       try {
-        await db.from('estoque_movimentacoes').insert([{
-          produto_id: produtoId,
+        const isUuid = produtoId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(produtoId);
+        const validUserId = (await getValidUserId()) || MASTER_USER_ID;
+        const movPayload = {
+          id: movId,
+          produto_id: isUuid ? produtoId : null,
           tipo: mov.tipo,
           quantidade: mov.quantidade,
           motivo: mov.motivo,
           os_id: mov.os_id,
-          responsavel: mov.responsavel,
+          user_id: validUserId,
           created_at: mov.created_at
-        }]);
+        };
+        const { error: movErr } = await client.from('estoque_movimentacoes').insert([movPayload]);
+        if (movErr) console.error('[registrarMovimentacao] Erro no Supabase:', movErr);
       } catch (e) {
-        console.warn('[Estoque] Aviso ao gravar movimentacao no Supabase:', e);
+        console.error('[Estoque] Erro ao gravar movimentacao no Supabase:', e);
       }
     }
 
@@ -2915,32 +3137,34 @@ Qualquer dúvida estamos à disposição!`;
     // 1. OBRIGATÓRIO: Validação com Supabase com bloco try/catch bloqueante
     // Não atualiza nem fecha a tela caso o banco rejeite
     let savedUuid = null;
-    if (db) {
+    const client = getDb();
+    if (client) {
       try {
         if (id) {
-          // Edição no Supabase
+          // Edição no Supabase (colunas estritas: nome, categoria, sku, custo, preco, minimo)
           const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
           const updatePayload = {
             nome,
-            categoria,
+            categoria: categoria || 'Geral',
             sku: sku || null,
             custo,
             preco,
-            minimo,
-            updated_at: new Date().toISOString()
+            minimo
           };
           let updateRes;
           if (isUuid) {
-            updateRes = await db.from('estoque_produtos').update(updatePayload).eq('id', id).select();
+            updateRes = await client.from('estoque_produtos').update(updatePayload).eq('id', id).select();
           } else {
-            updateRes = await db.from('estoque_produtos').update(updatePayload).eq('nome', nome).select();
+            updateRes = await client.from('estoque_produtos').update(updatePayload).eq('nome', nome).select();
           }
           if (updateRes.error) {
+            console.error('[handleSaveProduct] Erro ao atualizar produto no Supabase:', updateRes.error);
             throw new Error(`Falha no Supabase ao atualizar produto: ${updateRes.error.message || updateRes.error.details || 'Erro desconhecido'}`);
           }
         } else {
           // Inserção no Supabase (gera UUID válido)
           const newUuid = generateUUID();
+          const validUserId = (await getValidUserId()) || MASTER_USER_ID;
           const insertPayload = {
             id: newUuid,
             nome,
@@ -2950,23 +3174,21 @@ Qualquer dúvida estamos à disposição!`;
             preco,
             quantidade: Math.max(0, qtdInicial),
             minimo,
+            user_id: validUserId,
             created_at: new Date().toISOString()
           };
-          const validUserId = await getValidUserId();
-          if (validUserId) {
-            insertPayload.user_id = validUserId;
-          }
-          const { data, error } = await db.from('estoque_produtos').insert([insertPayload]).select();
+          const { data, error } = await client.from('estoque_produtos').insert([insertPayload]).select();
           if (error) {
+            console.error('[handleSaveProduct] Erro ao cadastrar produto no Supabase:', error);
             throw new Error(`Falha no Supabase ao cadastrar produto: ${error.message || error.details || 'Erro ao gravar no banco'}`);
           }
           savedUuid = data && data[0] ? data[0].id : newUuid;
         }
       } catch (err) {
-        console.error('[Estoque] Erro no Supabase:', err);
-        const isRls = (err.message || '').includes('row-level security') || err.code === '42501';
+        console.error('[handleSaveProduct] Erro fatal no Supabase:', err);
+        const isRls = (err.message || '').includes('row-level security') || err.code === '42501' || err.status === 401;
         const rlsHelp = isRls 
-          ? '\n\n💡 DICA: Execute o script SQL no Supabase para liberar as políticas de RLS.' 
+          ? '\n\n💡 DICA: Execute o script SQL no Supabase para liberar as políticas de RLS e permissões na tabela estoque_produtos.' 
           : '';
         alert(`❌ ERRO AO SALVAR PRODUTO NO BANCO:\n\n${err.message}${rlsHelp}\n\nA operação foi cancelada e os dados não foram salvos.`);
         return; // BLOQUEIA: não fecha o modal nem adiciona falso sucesso
@@ -3085,22 +3307,37 @@ Qualquer dúvida estamos à disposição!`;
     state.persistAll();
 
     // Sincroniza produto e movimentação no Supabase centralizado (tabela correta: estoque_produtos)
-    if (db) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(prod.id);
-      if (isUuid) {
-        db.from('estoque_produtos').update({ quantidade: prod.quantidade, updated_at: new Date().toISOString() }).eq('id', prod.id).catch(e => console.warn(e));
-      } else {
-        db.from('estoque_produtos').update({ quantidade: prod.quantidade, updated_at: new Date().toISOString() }).eq('nome', prod.nome).catch(e => console.warn(e));
-      }
+    const client = getDb();
+    if (client) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(prod.id);
+        const validUserId = (await getValidUserId()) || MASTER_USER_ID;
 
-      db.from('estoque_movimentacoes').insert([{
-        produto_id: isUuid ? prod.id : null,
-        tipo: tipo.toUpperCase(),
-        quantidade: qtd,
-        motivo: motivo || `Movimentação manual (${tipo})`,
-        responsavel: state.currentUser?.email || state.currentUser?.nome || 'Admin',
-        created_at: new Date().toISOString()
-      }]).catch(e => console.warn(e));
+        if (isUuid) {
+          client.from('estoque_produtos').update({ quantidade: prod.quantidade }).eq('id', prod.id).then(({ error }) => {
+            if (error) console.error('[handleMovimentarEstoque] Erro ao atualizar saldo no Supabase:', error);
+          }).catch(e => console.error(e));
+        } else {
+          client.from('estoque_produtos').update({ quantidade: prod.quantidade }).eq('nome', prod.nome).then(({ error }) => {
+            if (error) console.error('[handleMovimentarEstoque] Erro ao atualizar saldo no Supabase:', error);
+          }).catch(e => console.error(e));
+        }
+
+        const movUuid = generateUUID();
+        client.from('estoque_movimentacoes').insert([{
+          id: movUuid,
+          produto_id: isUuid ? prod.id : null,
+          tipo: tipo.toUpperCase(),
+          quantidade: qtd,
+          motivo: motivo || `Movimentação manual (${tipo})`,
+          user_id: validUserId,
+          created_at: new Date().toISOString()
+        }]).then(({ error }) => {
+          if (error) console.error('[handleMovimentarEstoque] Erro ao registrar movimentação no Supabase:', error);
+        }).catch(e => console.error(e));
+      } catch (errMov) {
+        console.error('[handleMovimentarEstoque] Erro geral no Supabase:', errMov);
+      }
     }
 
     AppEvents.emit('ESTOQUE_ATUALIZADO', { produtoId: prod.id, novoSaldo: prod.quantidade });
@@ -3121,18 +3358,22 @@ Qualquer dúvida estamos à disposição!`;
       return;
     }
 
-    if (db) {
+    const client = getDb();
+    if (client) {
       try {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let delRes;
         if (isUuid) {
-          const { error } = await db.from('estoque_produtos').delete().eq('id', id);
-          if (error) throw error;
+          delRes = await client.from('estoque_produtos').delete().eq('id', id);
         } else {
-          const { error } = await db.from('estoque_produtos').delete().eq('nome', prod.nome);
-          if (error) throw error;
+          delRes = await client.from('estoque_produtos').delete().eq('nome', prod.nome);
+        }
+        if (delRes?.error) {
+          console.error('[deleteProduct] Erro ao excluir no Supabase:', delRes.error);
+          throw delRes.error;
         }
       } catch (e) {
-        console.warn('Erro ao excluir produto no Supabase:', e);
+        console.error('[deleteProduct] Erro ao excluir produto no Supabase:', e);
         alert(`❌ Não foi possível excluir o produto no banco de dados:\n${e.message || 'Erro de conexão'}`);
         return;
       }
@@ -3179,7 +3420,7 @@ Qualquer dúvida estamos à disposição!`;
     if (window.lucide) window.lucide.createIcons();
   },
 
-  handleSaveCliente(event) {
+  async handleSaveCliente(event) {
     if (event) {
       try { event.preventDefault(); } catch {}
       try { event.stopPropagation(); } catch {}
@@ -3196,8 +3437,57 @@ Qualquer dúvida estamos à disposição!`;
     if (!nome) return alert('Informe o nome do cliente.');
     if (!celular) return alert('Informe o celular ou WhatsApp do cliente.');
 
+    // 1. OBRIGATÓRIO: Salvar no Supabase com bloco try/catch bloqueante
+    let savedId = id;
+    const client = getDb();
+    if (client) {
+      try {
+        const isUuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        const validUserId = (await getValidUserId()) || MASTER_USER_ID;
+        const obsFinal = observacoes ? (cpf ? `CPF: ${cpf} | ${observacoes}` : observacoes) : (cpf ? `CPF: ${cpf}` : null);
+
+        const cliPayload = {
+          nome,
+          celular: celular || null,
+          email: email || null,
+          endereco: endereco || null,
+          observacoes: obsFinal
+        };
+
+        if (id && isUuid) {
+          const { error } = await client.from('clientes').update(cliPayload).eq('id', id);
+          if (error) {
+            console.error('[handleSaveCliente] Erro ao atualizar cliente no Supabase:', error);
+            throw error;
+          }
+        } else {
+          savedId = generateUUID();
+          const insCli = {
+            id: savedId,
+            ...cliPayload,
+            user_id: validUserId,
+            created_at: new Date().toISOString()
+          };
+          const { data, error } = await client.from('clientes').insert([insCli]).select();
+          if (error) {
+            console.error('[handleSaveCliente] Erro ao cadastrar cliente no Supabase:', error);
+            throw error;
+          }
+          if (data && data[0]?.id) savedId = data[0].id;
+        }
+      } catch (err) {
+        console.error('[handleSaveCliente] Erro fatal no Supabase:', err);
+        const isRls = (err.message || '').includes('row-level security') || err.code === '42501' || err.status === 401;
+        const rlsHelp = isRls 
+          ? '\n\n💡 DICA: Execute o script SQL no Supabase para liberar as políticas de RLS e permissões na tabela clientes.' 
+          : '';
+        alert(`❌ ERRO AO SALVAR CLIENTE NO BANCO:\n\n${err.message || err.details || JSON.stringify(err)}${rlsHelp}\n\nA operação foi cancelada e os dados não foram salvos.`);
+        return; // BLOQUEIA: impede falso sucesso visual
+      }
+    }
+
+    // 2. Atualização local de estado após confirmação do banco
     if (id) {
-      // Edição
       const idx = state.clientes.findIndex(c => c.id === id);
       if (idx !== -1) {
         const oldNome = state.clientes[idx].nome;
@@ -3210,8 +3500,7 @@ Qualquer dúvida estamos à disposição!`;
           cpf,
           email,
           endereco,
-          observacoes,
-          updated_at: new Date().toISOString()
+          observacoes
         };
 
         // Sincroniza o histórico de OS desse cliente caso nome ou celular tenham mudado
@@ -3223,9 +3512,8 @@ Qualquer dúvida estamos à disposição!`;
         });
       }
     } else {
-      // Novo Cliente
       const newCli = {
-        id: 'cli_' + Date.now(),
+        id: savedId || generateUUID(),
         nome,
         celular,
         cpf,
@@ -3245,7 +3533,7 @@ Qualquer dúvida estamos à disposição!`;
     alert(`Cliente "${nome}" salvo com sucesso!`);
   },
 
-  deleteCliente(id) {
+  async deleteCliente(id) {
     const c = (state.clientes || []).find(x => x.id === id);
     if (!c) return;
 
@@ -3260,6 +3548,27 @@ Qualquer dúvida estamos à disposição!`;
       : `Deseja realmente excluir o cadastro do cliente "${c.nome}"?`;
 
     if (!confirm(msg)) return;
+
+    const client = getDb();
+    if (client) {
+      try {
+        const isUuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        let delRes;
+        if (isUuid) {
+          delRes = await client.from('clientes').delete().eq('id', id);
+        } else {
+          delRes = await client.from('clientes').delete().eq('nome', c.nome);
+        }
+        if (delRes?.error) {
+          console.error('[deleteCliente] Erro ao excluir no Supabase:', delRes.error);
+          throw delRes.error;
+        }
+      } catch (e) {
+        console.error('[deleteCliente] Erro fatal no Supabase:', e);
+        alert(`❌ Erro ao excluir cliente no banco:\n${e.message || 'Erro de conexão'}`);
+        return;
+      }
+    }
 
     state.clientes = state.clientes.filter(x => x.id !== id);
     state.persistAll();
@@ -5369,38 +5678,38 @@ const fornecedoresManager = {
     // 1. OBRIGATÓRIO: Gravação com Supabase em bloco try/catch bloqueante
     // Bloqueia qualquer atualização visual se o banco falhar
     let savedId = id;
-    if (db) {
+    const client = getDb();
+    if (client) {
       try {
         const isUuid = id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
         if (id) {
           let updateRes;
           if (isUuid) {
-            updateRes = await db.from('fornecedores').update(payload).eq('id', id).select();
+            updateRes = await client.from('fornecedores').update(payload).eq('id', id).select();
           } else {
-            updateRes = await db.from('fornecedores').update(payload).eq('nome', nome).select();
+            updateRes = await client.from('fornecedores').update(payload).eq('nome', nome).select();
           }
           if (updateRes.error) {
+            console.error('[fornecedoresManager.handleSave] Erro ao atualizar fornecedor no Supabase:', updateRes.error);
             throw new Error(`Falha ao atualizar fornecedor no Supabase: ${updateRes.error.message || updateRes.error.details || 'Erro desconhecido'}`);
           }
         } else {
           // Gera obrigatoriamente UUID válido compatível com coluna UUID do PostgreSQL
           savedId = generateUUID();
-          const insObj = { id: savedId, ...payload, created_at: new Date().toISOString() };
-          const validUserId = await getValidUserId();
-          if (validUserId) {
-            insObj.user_id = validUserId;
-          }
-          const { data, error } = await db.from('fornecedores').insert([insObj]).select();
+          const validUserId = (await getValidUserId()) || MASTER_USER_ID;
+          const insObj = { id: savedId, ...payload, user_id: validUserId, created_at: new Date().toISOString() };
+          const { data, error } = await client.from('fornecedores').insert([insObj]).select();
           if (error) {
+            console.error('[fornecedoresManager.handleSave] Erro ao cadastrar fornecedor no Supabase:', error);
             throw new Error(`Falha ao cadastrar fornecedor no Supabase: ${error.message || error.details || 'Erro ao gravar no banco'}`);
           }
           if (data && data[0]?.id) savedId = data[0].id;
         }
       } catch (err) {
-        console.error('[Fornecedores] Erro no Supabase:', err);
-        const isRls = (err.message || '').includes('row-level security') || err.code === '42501';
+        console.error('[fornecedoresManager.handleSave] Erro fatal no Supabase:', err);
+        const isRls = (err.message || '').includes('row-level security') || err.code === '42501' || err.status === 401;
         const rlsHelp = isRls 
-          ? '\n\n💡 DICA: Execute o script SQL no Supabase para liberar as políticas de RLS.' 
+          ? '\n\n💡 DICA: Execute o script SQL no Supabase para liberar as políticas de RLS e permissões na tabela fornecedores.' 
           : '';
         alert(`❌ ERRO AO SALVAR FORNECEDOR NO BANCO:\n\n${err.message}${rlsHelp}\n\nA operação foi cancelada e os dados não foram salvos.`);
         return; // BLOQUEIA: impede o falso sucesso visual
@@ -5598,33 +5907,32 @@ const ebooksManager = {
     const payload = { titulo, marca, modelo, categoria, url, descricao };
 
     try {
+      const client = getDb();
+      const validUserId = (await getValidUserId()) || MASTER_USER_ID;
+
       if (id) {
+        if (client) {
+          const { error } = await client.from('ebooks').update(payload).eq('id', id);
+          if (error) {
+            console.error('[ebooksManager.handleSave] Erro no Supabase:', error);
+            throw error;
+          }
+        }
         const idx = state.ebooks.findIndex(x => x.id === id);
         if (idx !== -1) {
           state.ebooks[idx] = { ...state.ebooks[idx], ...payload };
         }
-        if (db) {
-          try {
-            await db.from('ebooks').update(payload).eq('id', id);
-          } catch (e) {
-            console.warn('Supabase ebooks update:', e);
-          }
-        }
       } else {
         const newId = generateUUID();
-        const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
-        state.ebooks.unshift(novo);
-        if (db) {
-          try {
-            const insObj = { id: newId, ...payload };
-            if (state.currentUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.currentUser.id)) {
-              insObj.user_id = state.currentUser.id;
-            }
-            await db.from('ebooks').insert(insObj);
-          } catch (e) {
-            console.warn('Supabase ebooks insert:', e);
+        const insObj = { id: newId, ...payload, user_id: validUserId, created_at: new Date().toISOString() };
+        if (client) {
+          const { error } = await client.from('ebooks').insert([insObj]);
+          if (error) {
+            console.error('[ebooksManager.handleSave] Erro no Supabase:', error);
+            throw error;
           }
         }
+        state.ebooks.unshift(insObj);
       }
 
       state.persistAll();
@@ -5632,11 +5940,8 @@ const ebooksManager = {
       this.render();
       alert('✓ eBook / Esquema salvo com sucesso!');
     } catch (err) {
-      console.warn('Erro ao salvar eBook:', err);
-      state.persistAll();
-      this.closeModal();
-      this.render();
-      alert('✓ eBook salvo localmente!');
+      console.error('[ebooksManager.handleSave] Erro fatal ao salvar eBook:', err);
+      alert(`❌ Erro ao salvar eBook no banco:\n${err.message || 'Erro de conexão'}`);
     }
   },
 
@@ -5648,11 +5953,13 @@ const ebooksManager = {
     state.ebooks = state.ebooks.filter(x => x.id !== id);
     state.persistAll();
 
-    if (db) {
+    const client = getDb();
+    if (client) {
       try {
-        await db.from('ebooks').delete().eq('id', id);
+        const { error } = await client.from('ebooks').delete().eq('id', id);
+        if (error) console.error('[ebooksManager.delete] Erro no Supabase:', error);
       } catch (e) {
-        console.warn('Erro ao excluir no Supabase:', e);
+        console.error('[ebooksManager.delete] Erro ao excluir no Supabase:', e);
       }
     }
 
@@ -5845,33 +6152,32 @@ const videoaulasManager = {
     const payload = { titulo, marca, modelo, categoria, url, descricao };
 
     try {
+      const client = getDb();
+      const validUserId = (await getValidUserId()) || MASTER_USER_ID;
+
       if (id) {
+        if (client) {
+          const { error } = await client.from('videoaulas').update(payload).eq('id', id);
+          if (error) {
+            console.error('[videoaulasManager.handleSave] Erro no Supabase:', error);
+            throw error;
+          }
+        }
         const idx = state.videoaulas.findIndex(x => x.id === id);
         if (idx !== -1) {
           state.videoaulas[idx] = { ...state.videoaulas[idx], ...payload };
         }
-        if (db) {
-          try {
-            await db.from('videoaulas').update(payload).eq('id', id);
-          } catch (e) {
-            console.warn('Supabase videoaulas update:', e);
-          }
-        }
       } else {
         const newId = generateUUID();
-        const novo = { id: newId, ...payload, created_at: new Date().toISOString() };
-        state.videoaulas.unshift(novo);
-        if (db) {
-          try {
-            const insObj = { id: newId, ...payload };
-            if (state.currentUser?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(state.currentUser.id)) {
-              insObj.user_id = state.currentUser.id;
-            }
-            await db.from('videoaulas').insert(insObj);
-          } catch (e) {
-            console.warn('Supabase videoaulas insert:', e);
+        const insObj = { id: newId, ...payload, user_id: validUserId, created_at: new Date().toISOString() };
+        if (client) {
+          const { error } = await client.from('videoaulas').insert([insObj]);
+          if (error) {
+            console.error('[videoaulasManager.handleSave] Erro no Supabase:', error);
+            throw error;
           }
         }
+        state.videoaulas.unshift(insObj);
       }
 
       state.persistAll();
@@ -5879,11 +6185,8 @@ const videoaulasManager = {
       this.render();
       alert('✓ Videoaula salva com sucesso!');
     } catch (err) {
-      console.warn('Erro ao salvar videoaula:', err);
-      state.persistAll();
-      this.closeModal();
-      this.render();
-      alert('✓ Videoaula salva localmente!');
+      console.error('[videoaulasManager.handleSave] Erro fatal ao salvar videoaula:', err);
+      alert(`❌ Erro ao salvar videoaula no banco:\n${err.message || 'Erro de conexão'}`);
     }
   },
 
@@ -5895,11 +6198,13 @@ const videoaulasManager = {
     state.videoaulas = state.videoaulas.filter(x => x.id !== id);
     state.persistAll();
 
-    if (db) {
+    const client = getDb();
+    if (client) {
       try {
-        await db.from('videoaulas').delete().eq('id', id);
+        const { error } = await client.from('videoaulas').delete().eq('id', id);
+        if (error) console.error('[videoaulasManager.delete] Erro no Supabase:', error);
       } catch (e) {
-        console.warn('Erro ao excluir no Supabase:', e);
+        console.error('[videoaulasManager.delete] Erro ao excluir no Supabase:', e);
       }
     }
 
