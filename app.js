@@ -938,7 +938,6 @@ const app = {
       console.error('[Supabase Sync Global] Erro:', err);
     }
   },
-  },
 
   applyStoreConfig() {
     const nameEl = document.getElementById('headerStoreName');
@@ -3276,7 +3275,7 @@ Qualquer dúvida estamos à disposição!`;
     document.getElementById('modalMovimentarEstoque').classList.add('hidden');
   },
 
-  handleSaveMovimentacao(e) {
+  async handleSaveMovimentacao(e) {
     if (e) e.preventDefault();
     const id = document.getElementById('movProdId').value;
     const prod = state.products.find(p => p.id === id);

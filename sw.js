@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v28-login-unlock';
+const CACHE_NAME = 'chcell-pro-v29-syntax-fix';
 const ASSETS = [
   './',
   './index.html',
