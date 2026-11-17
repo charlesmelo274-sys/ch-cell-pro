@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v32-financeiro-relatorio-excel';
+const CACHE_NAME = 'chcell-pro-v33-carimbo-digital-os';
 const ASSETS = [
   './',
   './index.html',

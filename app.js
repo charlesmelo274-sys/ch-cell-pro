@@ -1856,16 +1856,23 @@ const app = {
 
     const publicUrl = `${window.location.origin}${window.location.pathname}?track=${encodeURIComponent(os.numero)}${docParam}`;
 
+    const rawDateWa = os.data_entrada || os.criado_em || os.created_at;
+    const parsedDateWa = rawDateWa ? new Date(rawDateWa.length === 10 ? rawDateWa + 'T12:00:00' : rawDateWa) : null;
+    const dataOSFormatada = (parsedDateWa && !isNaN(parsedDateWa.getTime()))
+      ? parsedDateWa.toLocaleDateString('pt-BR')
+      : new Date().toLocaleDateString('pt-BR');
+
     const text = 
 `Olá, *${os.cliente_nome}*! 👋
 Aqui é da *${state.config.storeName}*.
 
-Sua Ordem de Serviço foi registrada com sucesso:
+Passando para avisar que o serviço do aparelho *${os.marca} ${os.modelo}*, registado a *${dataOSFormatada}*, está com o status: *${os.status || 'Em Análise'}*.
+
 📋 *OS #${os.numero}*
-📱 *Aparelho:* ${os.marca} ${os.modelo}
+📅 *Data do Serviço:* ${dataOSFormatada}
 🛠️ *Defeito:* ${os.defeito_relatado}
 🔍 *Checklist de Entrada:* ${ok} OK / ${warn} com Atenção
-💰 *Valor Estimado:* ${state.formatMoney(os.valor)}
+💰 *Valor Total:* ${state.formatMoney(os.valor)}
 
 📄 *Acesse e baixe sua Nota Fiscal / Comprovante da OS em PDF pelo link abaixo:*
 👉 ${publicUrl}
@@ -4138,6 +4145,12 @@ Qualquer dúvida estamos à disposição!`;
     const printAddr = fixMojibake(state.config.address || 'Rua Principal, 120 - Centro');
     const printWarr = fixMojibake(state.config.warranty || 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída.');
 
+    const rawDateOS = os.data_entrada || os.criado_em || os.created_at;
+    const parsedDateOS = rawDateOS ? new Date(rawDateOS.length === 10 ? rawDateOS + 'T12:00:00' : rawDateOS) : null;
+    const dataOSFormatada = (parsedDateOS && !isNaN(parsedDateOS.getTime()))
+      ? parsedDateOS.toLocaleDateString('pt-BR')
+      : new Date().toLocaleDateString('pt-BR');
+
     if (model === 'thermal-80' || model === 'thermal-58') {
       // Cupom Térmico Não Fiscal
       printArea.innerHTML = `
@@ -4148,7 +4161,7 @@ Qualquer dúvida estamos à disposição!`;
           <p class="border-b border-dashed border-black my-1"></p>
 
           <p class="font-bold text-sm">ORDEM DE SERVIÇO #${os.numero}</p>
-          <p class="text-xs">Entrada: ${os.data_entrada}</p>
+          <p class="text-xs">Data do Serviço: ${dataOSFormatada}</p>
           <p class="border-b border-dashed border-black my-1"></p>
 
           <div class="text-left text-xs space-y-0.5">
@@ -4185,7 +4198,7 @@ Qualquer dúvida estamos à disposição!`;
     } else {
       // Impressão A4 Completa
       printArea.innerHTML = `
-        <div class="max-w-3xl mx-auto p-4 space-y-4">
+        <div class="max-w-3xl mx-auto p-4 space-y-4 relative">
           <div class="flex items-center justify-between border-b pb-3">
             <div>
               <h1 class="text-xl font-bold uppercase">${printStore}</h1>
@@ -4193,7 +4206,7 @@ Qualquer dúvida estamos à disposição!`;
             </div>
             <div class="text-right">
               <h2 class="text-lg font-black text-slate-900">OS #${os.numero}</h2>
-              <p class="text-xs text-slate-500">Entrada: ${os.data_entrada}</p>
+              <p class="text-xs text-slate-500">Data do Serviço: ${dataOSFormatada}</p>
             </div>
           </div>
 
@@ -4244,8 +4257,20 @@ Qualquer dúvida estamos à disposição!`;
           </div>
 
           <div class="grid grid-cols-2 gap-8 pt-8 text-center text-xs">
-            <div class="border-t border-black pt-1">Assinatura do Cliente</div>
-            <div class="border-t border-black pt-1">${printStore}</div>
+            <div class="flex flex-col justify-end">
+              <div class="border-t border-black pt-1">Assinatura do Cliente</div>
+            </div>
+            <div>
+              <div class="font-serif italic text-2xl text-blue-800 mt-2 mb-1">ChCell Manager</div>
+              <div class="border-t border-black pt-1">${printStore}</div>
+            </div>
+          </div>
+
+          <!-- CARIMBO DIGITAL -->
+          <div class="border-4 border-double border-red-600 text-red-600 rounded-full w-40 h-40 flex flex-col items-center justify-center opacity-80 -rotate-12 absolute right-16 bottom-16 pointer-events-none select-none">
+            <span class="font-black uppercase tracking-widest text-sm leading-tight">CH CELL</span>
+            <span class="font-black uppercase tracking-widest text-xs border-y border-red-600 py-0.5 my-1 px-2">SERVIÇO</span>
+            <span class="font-black uppercase tracking-widest text-xs">${dataOSFormatada}</span>
           </div>
         </div>
       `;
