@@ -4196,102 +4196,110 @@ Qualquer dúvida estamos à disposição!`;
         </div>
       `;
     } else {
-      // Impressão A4 Completa (Compactada para caber em 1 folha)
+      // RECIBO A4 COMPACTO - 1 PÁGINA
       const nomeLojaHeader = (typeof window !== 'undefined' && localStorage.getItem('chcell_nome_loja')) || printStore || 'CH Cell Assistência';
       const telLojaHeader = (typeof window !== 'undefined' && localStorage.getItem('chcell_telefone_loja')) || state.config.whatsApp || '(21) 98765-4321';
-      const osCodigoHeader = String(os.numero || os.id || '00000').slice(0, 8).toUpperCase();
+      const osCodigoHeader = String(os.numero || os.id || '00000').slice(0, 5).toUpperCase();
+      const modeloCompleto = [os.marca, os.modelo].filter(Boolean).join(' ') || 'Não Informado';
+      const laudoTexto = os.servico || os.laudo_tecnico || '';
+      const valorTotalNum = Number(os.valor || 0);
+      const valorPagoNum = Number(os.valor_pago || 0);
+      const saldoPagarNum = Math.max(0, valorTotalNum - valorPagoNum);
 
       printArea.innerHTML = `
-        <div class="max-w-4xl mx-auto p-4 text-sm space-y-3 relative text-black bg-white">
-          <!-- CABEÇALHO DO RECIBO A4 -->
-          <div class="border-b-2 border-gray-800 pb-4 mb-4 flex justify-between items-end">
+        <!-- RECIBO A4 COMPACTO - 1 PÁGINA -->
+        <div class="text-black bg-white max-w-4xl mx-auto p-6 text-sm font-sans relative">
+          <!-- 1. CABEÇALHO -->
+          <div class="border-b-2 border-gray-800 pb-3 mb-5 flex justify-between items-end">
             <div>
               <h1 class="text-3xl font-black uppercase tracking-widest text-gray-900">
                 ${esc(nomeLojaHeader)}
               </h1>
-              <p class="text-gray-600 text-sm mt-1 font-medium">ASSISTÊNCIA TÉCNICA ESPECIALIZADA</p>
-              <p class="text-gray-600 text-sm mt-1">
-                Rua das Margaridas, Inhoaíba - Zona Oeste, RJ | WhatsApp: ${esc(telLojaHeader)}
+              <p class="text-gray-600 text-xs mt-1 font-bold">ASSISTÊNCIA TÉCNICA ESPECIALIZADA</p>
+              <p class="text-gray-600 text-xs mt-0.5">
+                Rua das Margaridas, Inhoaíba - RJ | WhatsApp: ${esc(telLojaHeader)}
               </p>
             </div>
             <div class="text-right">
-              <h2 class="text-xl font-bold bg-gray-100 text-gray-800 px-4 py-2 rounded border border-gray-200">
+              <h2 class="text-lg font-bold bg-gray-100 text-gray-800 px-3 py-1.5 rounded border border-gray-200">
                 ORDEM DE SERVIÇO #${esc(osCodigoHeader)}
               </h2>
-              <p class="text-sm mt-2 font-bold text-gray-600">
-                Data: ${dataOSFormatada}
-              </p>
+              <p class="text-xs mt-1 font-bold text-gray-600">Entrada: ${dataOSFormatada}</p>
+              <p class="text-xs font-bold text-gray-800 mt-0.5">Status: ${esc(os.status || 'ORÇAMENTO')}</p>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4 text-xs">
-            <div class="p-3 border rounded-xl">
-              <h3 class="font-bold uppercase text-slate-500 mb-1">Dados do Cliente</h3>
-              <p><b>Nome:</b> ${os.cliente_nome}</p>
-              <p><b>WhatsApp:</b> ${os.cliente_celular}</p>
+          <!-- 2. DADOS DO CLIENTE & APARELHO -->
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="border border-gray-300 rounded-lg p-3 bg-gray-50">
+              <h3 class="text-[10px] font-black uppercase text-gray-500 mb-2 tracking-wider">Dados do Cliente</h3>
+              <p class="font-bold text-gray-800 text-base">${esc(os.cliente_nome || 'Não Informado')}</p>
+              <p class="text-gray-600 text-sm mt-1">WhatsApp: ${esc(os.cliente_celular || '-')}</p>
             </div>
-            <div class="p-3 border rounded-xl">
-              <h3 class="font-bold uppercase text-slate-500 mb-1">Aparelho</h3>
-              <p><b>Modelo:</b> ${os.marca} ${os.modelo}</p>
-              <p><b>Cor:</b> ${os.cor || '—'} | <b>Senha:</b> ${os.senha || '—'}</p>
+            <div class="border border-gray-300 rounded-lg p-3 bg-gray-50">
+              <h3 class="text-[10px] font-black uppercase text-gray-500 mb-2 tracking-wider">Aparelho</h3>
+              <p class="font-bold text-gray-800 text-base">${esc(modeloCompleto)}</p>
+              <p class="text-gray-600 text-sm mt-1">Senha: ${esc(os.senha || 'Sem senha')} | Cor: ${esc(os.cor || '-')}</p>
             </div>
           </div>
 
-          <div class="p-3 border rounded-xl text-xs space-y-1">
-            <h3 class="font-bold uppercase text-slate-500">Defeito e Laudo</h3>
-            <p><b>Defeito informado:</b> ${os.defeito_relatado}</p>
-            <p><b>Serviço autorizado:</b> ${os.servico || 'Diagnóstico em bancada'}</p>
-            <p><b>Checklist de avarias:</b> ${os.checklist_obs || 'Sem avarias relatadas'}</p>
-          </div>
-
-          <div class="p-3 border rounded-xl flex items-center justify-between text-xs">
+          <!-- 3. DIAGNÓSTICO E SERVIÇO -->
+          <div class="border border-gray-300 rounded-lg p-3 mb-4">
+            <h3 class="text-[10px] font-black uppercase text-gray-500 mb-2 tracking-wider">Diagnóstico e Serviço</h3>
+            <div class="mb-2">
+              <span class="font-bold text-gray-700 text-xs">Defeito Relatado: </span>
+              <span class="text-gray-800 text-sm">${esc(os.defeito_relatado || '-')}</span>
+            </div>
+            ${laudoTexto ? `
             <div>
-              <p><b>Previsão de Conclusão:</b> ${os.previsao_entrega || 'A combinar'}</p>
-              <p><b>Status atual:</b> ${os.status}</p>
+              <span class="font-bold text-gray-700 text-xs">Laudo / Serviço Executado: </span>
+              <span class="text-gray-800 text-sm">${esc(laudoTexto)}</span>
             </div>
-            <div class="text-right">
-              <p class="text-base font-bold">Valor Total: ${state.formatMoney(os.valor)}</p>
-              <p class="text-slate-500">Valor pago: ${state.formatMoney(os.valor_pago)}</p>
-              <p class="text-sm font-black text-rose-600">Saldo a acertar: ${state.formatMoney(Math.max(0, os.valor - os.valor_pago))}</p>
+            ` : ''}
+          </div>
+
+          <!-- 4. FINANCEIRO -->
+          <div class="grid grid-cols-3 gap-4 mb-5">
+            <div class="border border-gray-300 rounded-lg p-3 text-center">
+              <p class="text-[10px] font-black uppercase text-gray-500 mb-1">Valor Total</p>
+              <p class="text-lg font-black text-gray-800">R$ ${valorTotalNum.toFixed(2).replace('.', ',')}</p>
+            </div>
+            <div class="border border-gray-300 rounded-lg p-3 text-center">
+              <p class="text-[10px] font-black uppercase text-gray-500 mb-1">Valor Pago</p>
+              <p class="text-lg font-black text-emerald-600">R$ ${valorPagoNum.toFixed(2).replace('.', ',')}</p>
+            </div>
+            <div class="border border-gray-300 rounded-lg p-3 text-center bg-gray-100">
+              <p class="text-[10px] font-black uppercase text-gray-700 mb-1">Saldo a Pagar</p>
+              <p class="text-lg font-black text-red-600">R$ ${saldoPagarNum.toFixed(2).replace('.', ',')}</p>
             </div>
           </div>
 
-          <div class="flex items-center gap-4 p-3 border rounded-xl">
-            <div id="printQrCodeContainer"></div>
-            <div class="text-xs">
-              <p class="font-bold">Acompanhe seu conserto ao vivo pelo QR Code ou link:</p>
-              <p class="text-blue-600 break-all font-mono">${trackUrl}</p>
-            </div>
+          <!-- 5. TERMOS DE GARANTIA -->
+          <div class="text-[9px] text-gray-500 text-justify mb-8 border-t border-gray-200 pt-3">
+            <p><strong>Termos de Garantia e Condições:</strong> Garantia legal de 90 dias referente ao serviço executado e à peça substituída. A garantia não cobre danos causados por mau uso, quedas, contato com líquidos, tela trincada ou selo de garantia rompido. Aparelhos não retirados em até 90 dias após a conclusão do serviço poderão ser vendidos para custear as peças aplicadas e a mão de obra, conforme legislação vigente.</p>
           </div>
 
-          <div class="p-3 border rounded-xl text-[10px] text-justify space-y-1">
-            <p class="font-bold">Termos de Garantia e Condições de Atendimento:</p>
-            <p>${printWarr}</p>
-            <p>Declaro que li e concordo com os termos e com o checklist de entrada do aparelho registrado acima.</p>
-          </div>
-
-          <!-- ZONA DE ASSINATURAS E CARIMBO (COMPACTADA PARA 1 FOLHA) -->
-          <div class="relative flex justify-between items-end mt-6 pt-4 border-t border-gray-300 break-inside-avoid">
+          <!-- 6. ASSINATURAS E CARIMBO (COMPACTOS NO RODAPÉ) -->
+          <div class="relative flex justify-between items-end mt-4 pt-4 border-t border-gray-800 break-inside-avoid">
             <!-- Assinatura Cliente -->
-            <div class="text-center relative z-20">
-              <p class="font-bold text-gray-800">_______________________________________</p>
-              <p class="text-xs text-gray-600 mt-1">Declaro que li e concordo com os termos.</p>
-              <p class="text-xs font-bold text-gray-800">Assinatura do Cliente</p>
+            <div class="text-center relative z-20 w-56">
+              <p class="font-bold text-gray-800">_________________________________</p>
+              <p class="text-[10px] text-gray-600 mt-1">Li e concordo com os termos acima.</p>
+              <p class="text-xs font-bold text-gray-800 mt-1">Assinatura do Cliente</p>
             </div>
 
             <!-- Assinatura Técnico -->
-            <div class="text-center relative z-20">
+            <div class="text-center relative z-20 w-56">
               <div class="font-serif italic text-xl text-blue-800 mb-1">ChCell Manager</div>
-              <p class="font-bold text-gray-800">_______________________________________</p>
-              <p class="text-xs font-bold text-gray-800">${printStore || 'CH Cell Assistência Técnica'}</p>
+              <p class="font-bold text-gray-800">_________________________________</p>
+              <p class="text-xs font-bold text-gray-800 mt-1">CH Cell Assistência</p>
             </div>
 
-            <!-- CARIMBO DIGITAL ANCORADO -->
-            <div class="absolute right-4 bottom-4 -rotate-[4deg] pointer-events-none scale-[0.60] origin-bottom-right" style="z-index: 50; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+            <!-- CARIMBO DIGITAL ANCORADO AO CENTRO (FORÇADO A IMPRIMIR) -->
+            <div class="absolute left-1/2 -translate-x-1/2 bottom-2 -rotate-[4deg] pointer-events-none scale-[0.60] origin-bottom" style="z-index: 50; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
               <div class="relative border-[6px] border-[#0F2546] rounded-xl p-[3px] w-[380px] text-[#0F2546] bg-transparent">
                 <div class="border-[2px] border-[#0F2546] rounded-lg p-5 flex flex-col items-center justify-center relative bg-white">
-                  
-                  <!-- Ícone -->
+                  <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle,#0F2546_1px,transparent_1px)] bg-[size:4px_4px] rounded-lg pointer-events-none"></div>
                   <div class="mb-2 relative z-10 flex justify-center items-center">
                     <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#0F2546" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                       <rect x="5" y="2" width="12" height="20" rx="2" ry="2" />
@@ -4301,19 +4309,13 @@ Qualquer dúvida estamos à disposição!`;
                       <path d="M17 10.5v1m0 5v1m-2.5-3.5h-1m6 0h-1m-4.5-2.5l.7.7m4.6 4.6l.7.7m-6-0l.7-.7m4.6-4.6l.7-.7" stroke-width="1.5" />
                     </svg>
                   </div>
-
-                  <!-- Textos -->
                   <h2 class="text-5xl font-black tracking-widest m-0 leading-none relative z-10" style="font-family: Arial, Helvetica, sans-serif;">CH CELL</h2>
                   <p class="text-sm font-bold tracking-[0.15em] mt-2 mb-2 relative z-10">ASSINADO DIGITALMENTE</p>
-                  
-                  <!-- Assinatura SVG -->
                   <div class="absolute bottom-2 right-4">
                     <svg width="45" height="35" viewBox="0 0 100 50" fill="none" stroke="#0F2546" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M10,25 L30,45 L50,15 M40,35 C45,25 55,30 65,40 C70,30 85,25 95,20" />
                     </svg>
                   </div>
-
-                  <!-- Data -->
                   <div class="absolute bottom-3 left-4 text-[10px] font-black tracking-wider text-[#0F2546]">
                     DATA: ${dataOSFormatada}
                   </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v37-a4-header-inhoaiba';
+const CACHE_NAME = 'chcell-pro-v38-a4-ultracompact';
 const ASSETS = [
   './',
   './index.html',
