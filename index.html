@@ -83,7 +83,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="./styles.css?v=20261027_01">
+  <link rel="stylesheet" href="./styles.css?v=20261117_04">
 </head>
 <body class="bg-[#f0f4f8] text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
 
@@ -398,7 +398,7 @@
     </aside>
 
     <!-- CONTENT VIEWS -->
-    <main class="flex-1 p-3 sm:p-6 lg:p-8 min-w-0 pb-28 md:pb-8">
+    <main class="flex-1 p-3 sm:p-6 lg:p-8 min-w-0 pb-28 md:pb-8 print:hidden">
 
       <!-- ===================================================================
            VIEW 1: DASHBOARD / VISÃO GERAL (Fotos 1 e 2)
@@ -769,7 +769,7 @@
       <!-- ===================================================================
            VIEW 2: ORDENS DE SERVIÇO (LISTA & GESTÃO COMPLETA)
            =================================================================== -->
-      <section id="viewOSList" class="hidden space-y-5">
+      <section id="viewOSList" class="hidden space-y-5 print:hidden">
         
         <!-- OS Header & Filter Controls -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3110,11 +3110,11 @@
   </div>
 
   <!-- JavaScript Main Application Logic -->
-  <script src="./app.js?v=20261117_03"></script>
+  <script src="./app.js?v=20261117_04"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=20261117_03').then(reg => {
+        navigator.serviceWorker.register('./sw.js?v=20261117_04').then(reg => {
           reg.update();
         }).catch(err => console.log('SW registration failed:', err));
       });

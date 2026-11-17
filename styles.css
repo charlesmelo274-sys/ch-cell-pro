@@ -135,7 +135,7 @@ body {
     margin: 0 !important;
     padding: 0 !important;
   }
-  .no-print, nav, aside, header, footer, #bottomNav, .btn-action {
+  .no-print, nav, aside, header, footer, main, #viewOSList, #bottomNav, .btn-action {
     display: none !important;
   }
   .print-only {

@@ -4256,54 +4256,56 @@ Qualquer dúvida estamos à disposição!`;
             <p>Declaro que li e concordo com os termos e com o checklist de entrada do aparelho registrado acima.</p>
           </div>
 
-          <div class="grid grid-cols-2 gap-8 pt-8 text-center text-xs">
-            <div class="flex flex-col justify-end">
-              <div class="border-t border-black pt-1">Assinatura do Cliente</div>
+          <!-- ZONA DE ASSINATURAS E CARIMBO (RODAPÉ DO RECIBO A4) -->
+          <div class="relative flex justify-between items-end mt-16 pt-8 border-t border-gray-300">
+            <!-- Assinatura Cliente -->
+            <div class="text-center relative z-20">
+              <p class="font-bold text-gray-800">_______________________________________</p>
+              <p class="text-sm text-gray-600 mt-1">Declaro que li e concordo com os termos.</p>
+              <p class="text-sm font-bold text-gray-800">Assinatura do Cliente</p>
             </div>
-            <div>
-              <div class="font-serif italic text-2xl text-blue-800 mt-2 mb-1">ChCell Manager</div>
-              <div class="border-t border-black pt-1">${printStore}</div>
+
+            <!-- Assinatura Técnico -->
+            <div class="text-center relative z-20">
+              <div class="font-serif italic text-2xl text-blue-800 mb-1">ChCell Manager</div>
+              <p class="font-bold text-gray-800">_______________________________________</p>
+              <p class="text-sm font-bold text-gray-800">${printStore || 'CH Cell Assistência Técnica'}</p>
             </div>
-          </div>
 
-          <!-- CARIMBO DIGITAL CH CELL -->
-          <div class="hidden print:block absolute right-10 bottom-24 -rotate-[4deg] opacity-90 pointer-events-none z-50">
-            <!-- Borda Externa Grossa -->
-            <div class="relative border-[6px] border-[#0F2546] rounded-xl p-[3px] w-[380px] text-[#0F2546] bg-transparent">
-              <!-- Borda Interna Fina -->
-              <div class="border-[2px] border-[#0F2546] rounded-lg p-5 flex flex-col items-center justify-center relative bg-white/80">
-                
-                <!-- Efeito leve de textura de carimbo -->
-                <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle,#0F2546_1px,transparent_1px)] bg-[size:4px_4px] rounded-lg pointer-events-none"></div>
+            <!-- CARIMBO DIGITAL ANCORADO E REDIMENSIONADO -->
+            <div class="absolute right-12 bottom-12 -rotate-[4deg] opacity-90 pointer-events-none origin-bottom-right scale-[0.6] z-10">
+              <div class="relative border-[6px] border-[#0F2546] rounded-xl p-[3px] w-[380px] text-[#0F2546] bg-transparent">
+                <div class="border-[2px] border-[#0F2546] rounded-lg p-5 flex flex-col items-center justify-center relative bg-white">
+                  
+                  <!-- Textura -->
+                  <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle,#0F2546_1px,transparent_1px)] bg-[size:4px_4px] rounded-lg pointer-events-none"></div>
 
-                <!-- Ícone: Telemóvel + Visto + Engrenagem -->
-                <div class="mb-2 relative z-10 flex justify-center items-center">
-                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#0F2546" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <!-- Corpo do telemóvel -->
-                    <rect x="5" y="2" width="12" height="20" rx="2" ry="2" />
-                    <path d="M11 18h.01" stroke-width="3" />
-                    <!-- Visto (Check) -->
-                    <path d="M7 11l2 2 4-4" stroke-width="2.5" />
-                    <!-- Engrenagem lateral -->
-                    <circle cx="17" cy="14" r="2.5" fill="white" stroke-width="1.5" />
-                    <path d="M17 10.5v1m0 5v1m-2.5-3.5h-1m6 0h-1m-4.5-2.5l.7.7m4.6 4.6l.7.7m-6-0l.7-.7m4.6-4.6l.7-.7" stroke-width="1.5" />
-                  </svg>
-                </div>
+                  <!-- Ícone -->
+                  <div class="mb-2 relative z-10 flex justify-center items-center">
+                    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#0F2546" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="5" y="2" width="12" height="20" rx="2" ry="2" />
+                      <path d="M11 18h.01" stroke-width="3" />
+                      <path d="M7 11l2 2 4-4" stroke-width="2.5" />
+                      <circle cx="17" cy="14" r="2.5" fill="white" stroke-width="1.5" />
+                      <path d="M17 10.5v1m0 5v1m-2.5-3.5h-1m6 0h-1m-4.5-2.5l.7.7m4.6 4.6l.7.7m-6-0l.7-.7m4.6-4.6l.7-.7" stroke-width="1.5" />
+                    </svg>
+                  </div>
 
-                <!-- Textos Principais -->
-                <h2 class="text-5xl font-black tracking-widest m-0 leading-none relative z-10" style="font-family: Arial, Helvetica, sans-serif;">CH CELL</h2>
-                <p class="text-sm font-bold tracking-[0.15em] mt-2 mb-2 relative z-10">ASSINADO DIGITALMENTE</p>
-                
-                <!-- Assinatura Estilizada (Canto inferior direito) -->
-                <div class="absolute bottom-2 right-4">
-                  <svg width="45" height="35" viewBox="0 0 100 50" fill="none" stroke="#0F2546" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M10,25 L30,45 L50,15 M40,35 C45,25 55,30 65,40 C70,30 85,25 95,20" />
-                  </svg>
-                </div>
+                  <!-- Textos -->
+                  <h2 class="text-5xl font-black tracking-widest m-0 leading-none relative z-10" style="font-family: Arial, Helvetica, sans-serif;">CH CELL</h2>
+                  <p class="text-sm font-bold tracking-[0.15em] mt-2 mb-2 relative z-10">ASSINADO DIGITALMENTE</p>
+                  
+                  <!-- Assinatura SVG -->
+                  <div class="absolute bottom-2 right-4">
+                    <svg width="45" height="35" viewBox="0 0 100 50" fill="none" stroke="#0F2546" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M10,25 L30,45 L50,15 M40,35 C45,25 55,30 65,40 C70,30 85,25 95,20" />
+                    </svg>
+                  </div>
 
-                <!-- Data do Serviço (Canto inferior esquerdo) -->
-                <div class="absolute bottom-3 left-4 text-[10px] font-black tracking-wider text-[#0F2546]">
-                  DATA: ${dataOSFormatada}
+                  <!-- Data -->
+                  <div class="absolute bottom-3 left-4 text-[10px] font-black tracking-wider text-[#0F2546]">
+                    DATA: ${dataOSFormatada}
+                  </div>
                 </div>
               </div>
             </div>
