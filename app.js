@@ -1866,7 +1866,7 @@ const app = {
 `Olá, *${os.cliente_nome}*! 👋
 Aqui é da *${state.config.storeName}*.
 
-Passando para avisar que o serviço do aparelho *${os.marca} ${os.modelo}*, registado a *${dataOSFormatada}*, está com o status: *${os.status || 'Em Análise'}*.
+Passando para avisar que a sua ordem de serviço do aparelho *${os.marca} ${os.modelo}* (registada a *${dataOSFormatada}*) está com o status: *${os.status || 'ORÇAMENTO'}*.
 
 📋 *OS #${os.numero}*
 📅 *Data do Serviço:* ${dataOSFormatada}
@@ -4266,11 +4266,47 @@ Qualquer dúvida estamos à disposição!`;
             </div>
           </div>
 
-          <!-- CARIMBO DIGITAL -->
-          <div class="border-4 border-double border-red-600 text-red-600 rounded-full w-40 h-40 flex flex-col items-center justify-center opacity-80 -rotate-12 absolute right-16 bottom-16 pointer-events-none select-none">
-            <span class="font-black uppercase tracking-widest text-sm leading-tight">CH CELL</span>
-            <span class="font-black uppercase tracking-widest text-xs border-y border-red-600 py-0.5 my-1 px-2">SERVIÇO</span>
-            <span class="font-black uppercase tracking-widest text-xs">${dataOSFormatada}</span>
+          <!-- CARIMBO DIGITAL CH CELL -->
+          <div class="hidden print:block absolute right-10 bottom-24 -rotate-[4deg] opacity-90 pointer-events-none z-50">
+            <!-- Borda Externa Grossa -->
+            <div class="relative border-[6px] border-[#0F2546] rounded-xl p-[3px] w-[380px] text-[#0F2546] bg-transparent">
+              <!-- Borda Interna Fina -->
+              <div class="border-[2px] border-[#0F2546] rounded-lg p-5 flex flex-col items-center justify-center relative bg-white/80">
+                
+                <!-- Efeito leve de textura de carimbo -->
+                <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle,#0F2546_1px,transparent_1px)] bg-[size:4px_4px] rounded-lg pointer-events-none"></div>
+
+                <!-- Ícone: Telemóvel + Visto + Engrenagem -->
+                <div class="mb-2 relative z-10 flex justify-center items-center">
+                  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#0F2546" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <!-- Corpo do telemóvel -->
+                    <rect x="5" y="2" width="12" height="20" rx="2" ry="2" />
+                    <path d="M11 18h.01" stroke-width="3" />
+                    <!-- Visto (Check) -->
+                    <path d="M7 11l2 2 4-4" stroke-width="2.5" />
+                    <!-- Engrenagem lateral -->
+                    <circle cx="17" cy="14" r="2.5" fill="white" stroke-width="1.5" />
+                    <path d="M17 10.5v1m0 5v1m-2.5-3.5h-1m6 0h-1m-4.5-2.5l.7.7m4.6 4.6l.7.7m-6-0l.7-.7m4.6-4.6l.7-.7" stroke-width="1.5" />
+                  </svg>
+                </div>
+
+                <!-- Textos Principais -->
+                <h2 class="text-5xl font-black tracking-widest m-0 leading-none relative z-10" style="font-family: Arial, Helvetica, sans-serif;">CH CELL</h2>
+                <p class="text-sm font-bold tracking-[0.15em] mt-2 mb-2 relative z-10">ASSINADO DIGITALMENTE</p>
+                
+                <!-- Assinatura Estilizada (Canto inferior direito) -->
+                <div class="absolute bottom-2 right-4">
+                  <svg width="45" height="35" viewBox="0 0 100 50" fill="none" stroke="#0F2546" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10,25 L30,45 L50,15 M40,35 C45,25 55,30 65,40 C70,30 85,25 95,20" />
+                  </svg>
+                </div>
+
+                <!-- Data do Serviço (Canto inferior esquerdo) -->
+                <div class="absolute bottom-3 left-4 text-[10px] font-black tracking-wider text-[#0F2546]">
+                  DATA: ${dataOSFormatada}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       `;
