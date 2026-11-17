@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v31-definitive-fix';
+const CACHE_NAME = 'chcell-pro-v32-financeiro-relatorio-excel';
 const ASSETS = [
   './',
   './index.html',

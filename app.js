@@ -3868,6 +3868,71 @@ Qualquer dúvida estamos à disposição!`;
   // =========================================================================
   // 11. FINANCEIRO & CAIXA (FOTO 1 CARD 6)
   // =========================================================================
+  getExtratoFinanceiro() {
+    return [
+      ...state.orders.map(o => ({
+        id: o.id,
+        data: o.data_entrada || (o.created_at ? o.created_at.slice(0, 10) : ''),
+        tipo: 'entrada',
+        origem: 'OS',
+        desc: `OS #${o.numero || ''} - ${o.cliente_nome || 'Cliente'} (${o.modelo || 'Aparelho'})`,
+        valor: Number(o.valor || 0)
+      })),
+      ...state.sales.map(s => ({
+        id: s.id,
+        data: (s.created_at || s.data || new Date().toISOString()).slice(0, 10),
+        tipo: 'entrada',
+        origem: 'VENDA',
+        desc: `Venda PDV: ${s.cliente_nome || s.cliente || 'Balcão'}`,
+        valor: Number(s.total || 0)
+      })),
+      ...state.expenses.map(e => ({
+        id: e.id,
+        data: e.data || (e.created_at ? e.created_at.slice(0, 10) : ''),
+        tipo: 'saida',
+        origem: 'DESPESA',
+        desc: `Despesa: ${e.desc || e.descricao || 'Despesa Avulsa'}`,
+        valor: Number(e.valor || 0)
+      }))
+    ].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  },
+
+  handleExportarExcel() {
+    const extrato = this.getExtratoFinanceiro();
+    if (!extrato || extrato.length === 0) {
+      alert('Sem dados no caixa para exportar.');
+      return;
+    }
+
+    const cabecalho = 'Data,Tipo,Descrição,Operação,Valor\n';
+    const linhas = extrato.map(item => {
+      const dataFormatada = item.data || new Date().toISOString().slice(0, 10);
+      const desc = `"${(item.desc || '').replace(/"/g, '""')}"`.replace(/\n/g, ' ');
+      const operacao = item.tipo === 'entrada' ? 'entrada' : 'saida';
+      const valor = Number(item.valor || 0).toFixed(2);
+      return `${dataFormatada},${item.origem || item.tipo.toUpperCase()},${desc},${operacao},${valor}`;
+    }).join('\n');
+
+    const blob = new Blob(['\uFEFF' + cabecalho + linhas], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'financeiro_chcell.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
+
+  handleImprimirRelatorioFinanceiro() {
+    this.renderFinanceiroView();
+    document.body.classList.remove('print-thermal-80', 'print-thermal-58');
+    document.body.classList.add('print-a4');
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  },
+
   renderFinanceiroView() {
     const container = document.getElementById('finExtratoContainer');
     if (!container) return;
@@ -3883,29 +3948,36 @@ Qualquer dúvida estamos à disposição!`;
     const totalDespesas = state.expenses.reduce((acc, e) => acc + Number(e.valor || 0), 0);
     const lucroLiquido = totalFat - totalCusto - totalDespesas;
 
-    document.getElementById('finTotalFaturamento').textContent = state.formatMoney(totalFat);
-    document.getElementById('finTotalCusto').textContent = state.formatMoney(totalCusto);
-    document.getElementById('finTotalDespesas').textContent = state.formatMoney(totalDespesas);
-    document.getElementById('finTotalLucro').textContent = state.formatMoney(lucroLiquido);
+    const elFat = document.getElementById('finTotalFaturamento');
+    const elCusto = document.getElementById('finTotalCusto');
+    const elDesp = document.getElementById('finTotalDespesas');
+    const elLucro = document.getElementById('finTotalLucro');
 
-    // Extrato recente
-    const extrato = [
-      ...state.orders.map(o => ({ data: o.data_entrada || '', tipo: 'entrada', desc: `OS #${o.numero} - ${o.cliente_nome}`, valor: o.valor })),
-      ...state.sales.map(s => ({ data: (s.created_at || s.data || new Date().toISOString()).slice(0, 10), tipo: 'entrada', desc: `Venda PDV: ${s.cliente_nome || s.cliente || 'Balcão'}`, valor: s.total })),
-      ...state.expenses.map(e => ({ id: e.id, data: e.data || '', tipo: 'saida', desc: `Despesa: ${e.desc}`, valor: e.valor }))
-    ].sort((a, b) => (b.data || '').localeCompare(a.data || '')).slice(0, 20);
+    if (elFat) elFat.textContent = state.formatMoney(totalFat);
+    if (elCusto) elCusto.textContent = state.formatMoney(totalCusto);
+    if (elDesp) elDesp.textContent = state.formatMoney(totalDespesas);
+    if (elLucro) elLucro.textContent = state.formatMoney(lucroLiquido);
 
-    container.innerHTML = extrato.map(item => `
-      <div class="py-2.5 flex items-center justify-between border-b border-slate-50 last:border-0">
-        <div>
-          <p class="font-bold text-slate-800 text-xs sm:text-sm">${item.desc}</p>
-          <p class="text-[11px] text-slate-400">${item.data}</p>
+    // Extrato recente consolidado
+    const extrato = this.getExtratoFinanceiro();
+
+    // 1. Renderiza no container da tela (lista recente)
+    container.innerHTML = extrato.slice(0, 25).map(item => `
+      <div class="py-2.5 flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50/50 px-1 rounded transition">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-lg ${item.tipo === 'entrada' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'} flex items-center justify-center flex-shrink-0">
+            <i data-lucide="${item.tipo === 'entrada' ? (item.origem === 'OS' ? 'wrench' : 'shopping-cart') : 'arrow-down-circle'}" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <p class="font-bold text-slate-800 text-xs sm:text-sm">${esc(item.desc)}</p>
+            <p class="text-[11px] text-slate-400">${item.data || '-'}</p>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <span class="font-black text-xs sm:text-sm ${item.tipo === 'entrada' ? 'text-emerald-600' : 'text-rose-600'}">
             ${item.tipo === 'entrada' ? '+' : '-'} ${state.formatMoney(item.valor)}
           </span>
-          ${item.id ? `
+          ${item.id && item.tipo === 'saida' ? `
             <button onclick="app.deleteExpense('${item.id}')" title="Excluir despesa" class="p-1 text-slate-300 hover:text-rose-600 rounded transition cursor-pointer">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
             </button>
@@ -3913,6 +3985,82 @@ Qualquer dúvida estamos à disposição!`;
         </div>
       </div>
     `).join('');
+
+    // 2. Renderiza no bloco A4 de impressão (hidden print:block)
+    const printEl = document.getElementById('finRelatorioPrint');
+    const printArea = document.getElementById('printArea');
+    const storeName = state.config?.storeName || 'ChCell Assistência';
+    const nowStr = new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    const htmlRelatorio = `
+      <div class="border-b-2 border-slate-900 pb-4 mb-6 flex justify-between items-end">
+        <div>
+          <h1 class="text-3xl font-black uppercase tracking-widest text-slate-900">${esc(storeName)}</h1>
+          <p class="text-slate-600 text-sm mt-1">Fecho de Caixa e Balanço Geral Consolidado</p>
+        </div>
+        <div class="text-right">
+          <div class="text-xs font-bold uppercase bg-slate-100 text-slate-800 px-3 py-1.5 rounded inline-block border border-slate-300">DATA DA EMISSÃO</div>
+          <p class="text-xs text-slate-500 mt-1.5">${nowStr}</p>
+        </div>
+      </div>
+
+      <!-- CARDS DE RESUMO DO FECHO DE CAIXA -->
+      <div class="grid grid-cols-4 gap-4 mb-8">
+        <div class="border border-slate-300 rounded-xl p-4 bg-slate-50/70">
+          <p class="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Faturamento Total</p>
+          <p class="text-xl font-black text-slate-900">${state.formatMoney(totalFat)}</p>
+          <p class="text-[10px] text-slate-400 mt-0.5">OS + Vendas PDV</p>
+        </div>
+        <div class="border border-slate-300 rounded-xl p-4 bg-slate-50/70">
+          <p class="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Custo de Peças</p>
+          <p class="text-xl font-black text-rose-600">${state.formatMoney(totalCusto)}</p>
+          <p class="text-[10px] text-slate-400 mt-0.5">Peças aplicadas</p>
+        </div>
+        <div class="border border-slate-300 rounded-xl p-4 bg-slate-50/70">
+          <p class="text-slate-500 text-[10px] font-bold uppercase tracking-wider mb-1">Despesas da Loja</p>
+          <p class="text-xl font-black text-amber-600">${state.formatMoney(totalDespesas)}</p>
+          <p class="text-[10px] text-slate-400 mt-0.5">Gastos e contas</p>
+        </div>
+        <div class="border ${lucroLiquido >= 0 ? 'border-emerald-300 bg-emerald-50/60' : 'border-rose-300 bg-rose-50/60'} rounded-xl p-4">
+          <p class="${lucroLiquido >= 0 ? 'text-emerald-700' : 'text-rose-700'} text-[10px] font-bold uppercase tracking-wider mb-1">LUCRO LÍQUIDO REAL</p>
+          <p class="text-xl font-black ${lucroLiquido >= 0 ? 'text-emerald-700' : 'text-rose-700'}">${state.formatMoney(lucroLiquido)}</p>
+          <p class="text-[10px] ${lucroLiquido >= 0 ? 'text-emerald-600/80' : 'text-rose-600/80'} mt-0.5">Faturamento − Custos − Despesas</p>
+        </div>
+      </div>
+
+      <!-- TABELA DE EXTRATO RECENTE DO CAIXA -->
+      <h3 class="font-bold text-slate-800 bg-slate-100 inline-block px-3 py-1 mb-3 rounded text-xs uppercase tracking-wider border border-slate-200">Extrato Recente do Caixa</h3>
+      <table class="w-full text-left border-collapse border border-slate-300 text-xs mb-6">
+        <thead>
+          <tr class="bg-slate-100 text-slate-700 text-[11px] uppercase tracking-wider border-b border-slate-300">
+            <th class="px-3 py-2.5 border-r border-slate-300 font-bold">Data</th>
+            <th class="px-3 py-2.5 border-r border-slate-300 font-bold">Tipo</th>
+            <th class="px-3 py-2.5 border-r border-slate-300 font-bold">Descrição</th>
+            <th class="px-3 py-2.5 text-right font-bold">Valor (R$)</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          ${extrato.slice(0, 35).map(item => `
+            <tr class="hover:bg-slate-50">
+              <td class="px-3 py-2 border-r border-slate-200 text-slate-600 whitespace-nowrap">${item.data || '-'}</td>
+              <td class="px-3 py-2 border-r border-slate-200 font-bold text-slate-800">${item.origem || (item.tipo === 'entrada' ? 'ENTRADA' : 'SAÍDA')}</td>
+              <td class="px-3 py-2 border-r border-slate-200 text-slate-700">${esc(item.desc)}</td>
+              <td class="px-3 py-2 text-right font-black ${item.tipo === 'entrada' ? 'text-emerald-700' : 'text-rose-600'} whitespace-nowrap">
+                ${item.tipo === 'entrada' ? '+' : '-'} ${state.formatMoney(item.valor)}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div class="mt-8 pt-4 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400">
+        <span>Sistema de Gestão CH Cell Pro</span>
+        <span>Relatório financeiro para controle interno e fecho de caixa</span>
+      </div>
+    `;
+
+    if (printEl) printEl.innerHTML = htmlRelatorio;
+    if (printArea) printArea.innerHTML = htmlRelatorio;
 
     if (window.lucide) window.lucide.createIcons();
   },

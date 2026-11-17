@@ -1332,6 +1332,7 @@
            VIEW 6: FINANCEIRO & CAIXA (Matching Photo 1 Card 6)
            =================================================================== -->
       <section id="viewFinanceiro" class="hidden space-y-5">
+        <div class="print:hidden space-y-5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
             <button onclick="app.goBack()" title="Voltar para a tela anterior" class="p-2 bg-white hover:bg-slate-100 active:scale-95 text-slate-600 hover:text-brand-600 rounded-xl border border-slate-200 transition shadow-sm cursor-pointer">
@@ -1342,9 +1343,17 @@
               <p class="text-xs text-slate-500">Entradas, saídas, custo de peças e lucro líquido consolidado</p>
             </div>
           </div>
-          <button onclick="app.openNewExpenseModal()" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm">
-            <i data-lucide="plus" class="w-4 h-4"></i> Lançar Despesa
-          </button>
+          <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <button onclick="app.handleExportarExcel()" title="Exportar Extrato Recente para Excel / CSV" class="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+              <i data-lucide="download" class="w-4 h-4 text-slate-600"></i> Exportar
+            </button>
+            <button onclick="app.handleImprimirRelatorioFinanceiro()" title="Imprimir Relatório A4 de Fecho de Caixa" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="printer" class="w-4 h-4 text-slate-700"></i> Relatório
+            </button>
+            <button onclick="app.openNewExpenseModal()" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+              <i data-lucide="plus" class="w-4 h-4"></i> Lançar Despesa
+            </button>
+          </div>
         </div>
 
         <!-- Financial KPI Cards -->
@@ -1381,6 +1390,11 @@
             <!-- Populated dynamically -->
           </div>
         </div>
+
+          </div>
+
+        <!-- Relatório A4 para Impressão (invisível na tela, visível na impressão) -->
+        <div id="finRelatorioPrint" class="hidden print:block text-black bg-white p-8 max-w-4xl mx-auto"></div>
       </section>
 
       <!-- ===================================================================
@@ -3096,11 +3110,11 @@
   </div>
 
   <!-- JavaScript Main Application Logic -->
-  <script src="./app.js?v=20261105_05"></script>
+  <script src="./app.js?v=20261117_01"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=20261105_05').then(reg => {
+        navigator.serviceWorker.register('./sw.js?v=20261117_01').then(reg => {
           reg.update();
         }).catch(err => console.log('SW registration failed:', err));
       });
