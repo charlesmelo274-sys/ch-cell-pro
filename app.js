@@ -4196,9 +4196,9 @@ Qualquer dúvida estamos à disposição!`;
         </div>
       `;
     } else {
-      // Impressão A4 Completa
+      // Impressão A4 Completa (Compactada para caber em 1 folha)
       printArea.innerHTML = `
-        <div class="max-w-3xl mx-auto p-4 space-y-4 relative">
+        <div class="max-w-4xl mx-auto p-4 text-sm space-y-3 relative text-black bg-white">
           <div class="flex items-center justify-between border-b pb-3">
             <div>
               <h1 class="text-xl font-bold uppercase">${printStore}</h1>
@@ -4256,30 +4256,27 @@ Qualquer dúvida estamos à disposição!`;
             <p>Declaro que li e concordo com os termos e com o checklist de entrada do aparelho registrado acima.</p>
           </div>
 
-          <!-- ZONA DE ASSINATURAS E CARIMBO (RODAPÉ DO RECIBO A4) -->
-          <div class="relative flex justify-between items-end mt-16 pt-8 border-t border-gray-300">
+          <!-- ZONA DE ASSINATURAS E CARIMBO (COMPACTADA PARA 1 FOLHA) -->
+          <div class="relative flex justify-between items-end mt-6 pt-4 border-t border-gray-300 break-inside-avoid">
             <!-- Assinatura Cliente -->
             <div class="text-center relative z-20">
               <p class="font-bold text-gray-800">_______________________________________</p>
-              <p class="text-sm text-gray-600 mt-1">Declaro que li e concordo com os termos.</p>
-              <p class="text-sm font-bold text-gray-800">Assinatura do Cliente</p>
+              <p class="text-xs text-gray-600 mt-1">Declaro que li e concordo com os termos.</p>
+              <p class="text-xs font-bold text-gray-800">Assinatura do Cliente</p>
             </div>
 
             <!-- Assinatura Técnico -->
             <div class="text-center relative z-20">
-              <div class="font-serif italic text-2xl text-blue-800 mb-1">ChCell Manager</div>
+              <div class="font-serif italic text-xl text-blue-800 mb-1">ChCell Manager</div>
               <p class="font-bold text-gray-800">_______________________________________</p>
-              <p class="text-sm font-bold text-gray-800">${printStore || 'CH Cell Assistência Técnica'}</p>
+              <p class="text-xs font-bold text-gray-800">${printStore || 'CH Cell Assistência Técnica'}</p>
             </div>
 
-            <!-- CARIMBO DIGITAL ANCORADO E REDIMENSIONADO -->
-            <div class="absolute right-12 bottom-12 -rotate-[4deg] opacity-90 pointer-events-none origin-bottom-right scale-[0.6] z-10">
+            <!-- CARIMBO DIGITAL ANCORADO -->
+            <div class="absolute right-4 bottom-4 -rotate-[4deg] pointer-events-none scale-[0.60] origin-bottom-right" style="z-index: 50; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
               <div class="relative border-[6px] border-[#0F2546] rounded-xl p-[3px] w-[380px] text-[#0F2546] bg-transparent">
                 <div class="border-[2px] border-[#0F2546] rounded-lg p-5 flex flex-col items-center justify-center relative bg-white">
                   
-                  <!-- Textura -->
-                  <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle,#0F2546_1px,transparent_1px)] bg-[size:4px_4px] rounded-lg pointer-events-none"></div>
-
                   <!-- Ícone -->
                   <div class="mb-2 relative z-10 flex justify-center items-center">
                     <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#0F2546" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

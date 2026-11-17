@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chcell-pro-v35-print-fix-carimbo';
+const CACHE_NAME = 'chcell-pro-v36-a4-compact-1page';
 const ASSETS = [
   './',
   './index.html',

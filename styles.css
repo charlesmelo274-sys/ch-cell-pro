@@ -166,7 +166,7 @@ body {
   /* Formato A4 */
   body.print-a4 {
     width: 100% !important;
-    padding: 10mm !important;
+    padding: 4mm !important;
   }
   body.print-a4 .page-break {
     page-break-after: always;
