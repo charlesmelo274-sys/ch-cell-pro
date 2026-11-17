@@ -83,7 +83,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- Custom Styles -->
-  <link rel="stylesheet" href="./styles.css?v=20261117_05">
+  <link rel="stylesheet" href="./styles.css?v=20261117_06">
 </head>
 <body class="bg-[#f0f4f8] text-slate-800 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
 
@@ -1815,7 +1815,7 @@
               </div>
               <div>
                 <label class="block font-semibold text-slate-600 mb-1">Endereço da Loja</label>
-                <input id="cfgStoreAddress" type="text" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl" value="Rua Principal, 120 - Centro">
+                <input id="cfgStoreAddress" type="text" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl" value="Rua das Margaridas, Inhoaíba - Zona Oeste, RJ">
               </div>
               <div>
                 <label class="block font-semibold text-slate-600 mb-1">Termos de Garantia (Aparece no recibo e na OS impressa)</label>
@@ -2293,7 +2293,7 @@
           <div class="space-y-1">
             <h1 id="pubDocStoreName" class="text-xl sm:text-2xl font-black uppercase text-slate-900 tracking-tight">CH CELL ASSISTÊNCIA TÉCNICA</h1>
             <p id="pubDocStoreSub" class="text-xs text-slate-600 font-medium">Manutenção e Reparo Especializado de Smartphones</p>
-            <p id="pubDocStoreAddr" class="text-xs text-slate-500">Rua Principal, 120 - Centro</p>
+            <p id="pubDocStoreAddr" class="text-xs text-slate-500">Rua das Margaridas, Inhoaíba - Zona Oeste, RJ</p>
             <p id="pubDocStorePhone" class="text-xs text-slate-500 font-semibold">WhatsApp / Atendimento: (21) 98765-4321</p>
           </div>
 
@@ -3110,11 +3110,11 @@
   </div>
 
   <!-- JavaScript Main Application Logic -->
-  <script src="./app.js?v=20261117_05"></script>
+  <script src="./app.js?v=20261117_06"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js?v=20261117_05').then(reg => {
+        navigator.serviceWorker.register('./sw.js?v=20261117_06').then(reg => {
           reg.update();
         }).catch(err => console.log('SW registration failed:', err));
       });

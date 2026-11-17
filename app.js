@@ -484,7 +484,7 @@ class AppState {
     this.config = this.loadStorage('chcell_config', {
       storeName: 'CH Cell Assistência Técnica',
       whatsApp: '21987654321',
-      address: 'Rua Principal, 120 - Centro',
+      address: 'Rua das Margaridas, Inhoaíba - Zona Oeste, RJ',
       warranty: 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída. Não cobre danos por quedas, trincados ou umidade.',
       printModel: 'thermal-80'
     });
@@ -2148,7 +2148,7 @@ Qualquer dúvida estamos à disposição!`;
     const pubStoreEl = document.getElementById('pubDocStoreName');
     if (pubStoreEl) pubStoreEl.textContent = headerTitle;
     const pubAddrEl = document.getElementById('pubDocStoreAddr');
-    if (pubAddrEl) pubAddrEl.textContent = fixMojibake(state.config.address || 'Rua Principal, 120 - Centro');
+    if (pubAddrEl) pubAddrEl.textContent = fixMojibake(state.config.address || 'Rua das Margaridas, Inhoaíba - Zona Oeste, RJ');
     const pubPhoneEl = document.getElementById('pubDocStorePhone');
     if (pubPhoneEl) pubPhoneEl.textContent = `WhatsApp / Atendimento: ${state.config.whatsApp || '(21) 98765-4321'}`;
 
@@ -4142,7 +4142,7 @@ Qualquer dúvida estamos à disposição!`;
 
     let qrCodeHtml = `<div id="printQrCodeContainer" class="flex justify-center my-2"></div>`;
     const printStore = fixMojibake(state.config.storeName || 'CH Cell Assistência Técnica');
-    const printAddr = fixMojibake(state.config.address || 'Rua Principal, 120 - Centro');
+    const printAddr = fixMojibake(state.config.address || 'Rua das Margaridas, Inhoaíba - Zona Oeste, RJ');
     const printWarr = fixMojibake(state.config.warranty || 'Garantia legal de 90 dias referente ao serviço executado e à peça substituída.');
 
     const rawDateOS = os.data_entrada || os.criado_em || os.created_at;
@@ -4197,16 +4197,30 @@ Qualquer dúvida estamos à disposição!`;
       `;
     } else {
       // Impressão A4 Completa (Compactada para caber em 1 folha)
+      const nomeLojaHeader = (typeof window !== 'undefined' && localStorage.getItem('chcell_nome_loja')) || printStore || 'CH Cell Assistência';
+      const telLojaHeader = (typeof window !== 'undefined' && localStorage.getItem('chcell_telefone_loja')) || state.config.whatsApp || '(21) 98765-4321';
+      const osCodigoHeader = String(os.numero || os.id || '00000').slice(0, 8).toUpperCase();
+
       printArea.innerHTML = `
         <div class="max-w-4xl mx-auto p-4 text-sm space-y-3 relative text-black bg-white">
-          <div class="flex items-center justify-between border-b pb-3">
+          <!-- CABEÇALHO DO RECIBO A4 -->
+          <div class="border-b-2 border-gray-800 pb-4 mb-4 flex justify-between items-end">
             <div>
-              <h1 class="text-xl font-bold uppercase">${printStore}</h1>
-              <p class="text-xs text-slate-500">${printAddr} • Tel: ${state.config.whatsApp || ''}</p>
+              <h1 class="text-3xl font-black uppercase tracking-widest text-gray-900">
+                ${esc(nomeLojaHeader)}
+              </h1>
+              <p class="text-gray-600 text-sm mt-1 font-medium">ASSISTÊNCIA TÉCNICA ESPECIALIZADA</p>
+              <p class="text-gray-600 text-sm mt-1">
+                Rua das Margaridas, Inhoaíba - Zona Oeste, RJ | WhatsApp: ${esc(telLojaHeader)}
+              </p>
             </div>
             <div class="text-right">
-              <h2 class="text-lg font-black text-slate-900">OS #${os.numero}</h2>
-              <p class="text-xs text-slate-500">Data do Serviço: ${dataOSFormatada}</p>
+              <h2 class="text-xl font-bold bg-gray-100 text-gray-800 px-4 py-2 rounded border border-gray-200">
+                ORDEM DE SERVIÇO #${esc(osCodigoHeader)}
+              </h2>
+              <p class="text-sm mt-2 font-bold text-gray-600">
+                Data: ${dataOSFormatada}
+              </p>
             </div>
           </div>
 
